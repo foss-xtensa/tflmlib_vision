@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<xxProperties>
+<propertyGroup name="project.information">
+<version value="3.0"/>
+</propertyGroup>
+<propertyGroup name="build.property">
+<buildTarget defaultTarget="Debug"/>
+</propertyGroup>
+<propertyGroup name="build.exclusion.data">
+<buildExclusionDatas>
+<exclusionSet name="Default" selected="1">
+<excludedEntry data="/.*/bin/.*"/>
+<excludedEntry data="/.*/tensorflow/lite/micro/examples/person_detection/model_settings\.cc"/>
+<excludedEntry data="/.*/tensorflow/lite/micro/examples/person_detection/person_detection_test\.cc"/>
+</exclusionSet>
+</buildExclusionDatas>
+</propertyGroup>
+<propertyGroup name="build.auto.includes">
+<exportDirs autoConsumeDirs="true" includeDepDirs="true" mode="manual">
+<dir>tensorflow/lite/micro</dir>
+<dir>tensorflow/lite/micro/examples/person_detection</dir>
+</exportDirs>
+</propertyGroup>
+<propertyGroup name="library.dependencies">
+<libraryDependencies targetMappingRule="2"/>
+</propertyGroup>
+<propertyGroup name="build.custom.steps"/>
+</xxProperties>

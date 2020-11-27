@@ -1,0 +1,8 @@
+#
+#Tue Jul 28 14:12:11 IST 2020
+com.tensilica.xide.cdtcommandlist=
+org.eclipse.cdt.launch.WORKING_DIRECTORY=
+com.tensilica.xide.cdtrunscriptafterload=false
+com.tensilica.xide.cdt.launch.attachingdo=resume and stop in main
+org.eclipse.cdt.launch.PROGRAM_ARGUMENTS=
+com.tensilica.xide.cdt.launch.attachingdo.stop.at.symbol=main

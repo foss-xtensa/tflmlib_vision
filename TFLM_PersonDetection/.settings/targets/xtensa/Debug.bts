@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<BuildTarget tool="xtensa" version="1.0">
+    <BuildSettings>
+        <BaseSettings path="project">
+            <PreprocessorOptions>
+                <StringListMapOptions>
+                    <StringListMapEntry>
+                        <key>Includes</key>
+                        <value flag="-I" inheritance="prepend">
+                            <ListEntry>${workspace_loc:TFmicroPersonDetection}</ListEntry>
+                            <ListEntry>${workspace_loc:TFmicroPersonDetection/tensorflow/lite/micro/tools/make/downloads/flatbuffers/include}</ListEntry>
+                            <ListEntry>${workspace_loc:TFmicroPersonDetection/tensorflow/lite/micro/tools/make/downloads/gemmlowp}</ListEntry>
+                        </value>
+                    </StringListMapEntry>
+                </StringListMapOptions>
+            </PreprocessorOptions>
+            <CompilerOptions>
+                <SingleFlagMapOptions>
+                    <SingleFlagMapEntry>
+                        <key>CompilerEnableLongCall</key>
+                        <value flag="-mlongcalls" use="true"/>
+                    </SingleFlagMapEntry>
+                    <SingleFlagMapEntry>
+                        <key>CompilerVariant</key>
+                        <value flag="xt-clang" use="true"/>
+                    </SingleFlagMapEntry>
+                </SingleFlagMapOptions>
+                <FlagValueMapOptions>
+                    <FlagValueMapEntry>
+                        <key>Debug</key>
+                        <value level="-3" flag="-g" use="true"/>
+                    </FlagValueMapEntry>
+                    <FlagValueMapEntry>
+                        <key>Optimization</key>
+                        <value level="1" flag="-O" use="true"/>
+                    </FlagValueMapEntry>
+                </FlagValueMapOptions>
+                <StringListMapOptions>
+                    <StringListMapEntry>
+                        <key>CompilerAdditionalOptions</key>
+                        <value flag="" inheritance="append">
+                            <ListEntry>-std=c++11 -DTF_LITE_STATIC_MEMORY -DNDEBUG -DTF_LITE_MCU_DEBUG_LOG --xtensa-core=visionp6_ao -mcoproc -DXTENSA -DMAX_RFFT_PWR=9 -DMIN_RFFT_PWR=MAX_RFFT_PWR -fdata-sections -ffunction-sections -fno-exceptions -fno-unwind-tables -fno-use-cxa-atexit -fmessage-length=0 -fno-threadsafe-statics </ListEntry>
+                        </value>
+                    </StringListMapEntry>
+                </StringListMapOptions>
+            </CompilerOptions>
+            <AssemblerOptions>
+                <SingleFlagMapOptions>
+                    <SingleFlagMapEntry>
+                        <key>AssemblerIncludeDebug</key>
+                        <value flag="--gdwarf-2" use="true"/>
+                    </SingleFlagMapEntry>
+                </SingleFlagMapOptions>
+            </AssemblerOptions>
+            <LinkerOptions>
+                <BooleanMapOptions>
+                    <BooleanMapEntry>
+                        <key>CreateMinsize</key>
+                        <value selected="true"/>
+                    </BooleanMapEntry>
+                </BooleanMapOptions>
+                <StringListMapOptions>
+                    <StringListMapEntry>
+                        <key>Libraries</key>
+                        <value flag="-l" inheritance="prepend">
+                            <ListEntry>idma-xtos</ListEntry>
+                        </value>
+                    </StringListMapEntry>
+                </StringListMapOptions>
+                <LinkerSupport custom="false" key="-mlsp=" value="sim"/>
+            </LinkerOptions>
+        </BaseSettings>
+        <OverriddenSettings>
+            <OverriddenSettingsEntry>
+                <key>tensorflow</key>
+                <value path="tensorflow">
+                    <PreprocessorOptions>
+                        <StringListMapOptions>
+                            <StringListMapEntry>
+<key>Includes</key>
+<value flag="-I" inheritance="prepend">
+    <ListEntry>${workspace_loc:TFmicroPersonDetection/tensorflow/lite/micro/tools/make/downloads/ruy}</ListEntry>
+</value>
+                            </StringListMapEntry>
+                        </StringListMapOptions>
+                    </PreprocessorOptions>
+                </value>
+            </OverriddenSettingsEntry>
+            <OverriddenSettingsEntry>
+                <key>tensorflow/lite/c/common.c</key>
+                <value path="tensorflow/lite/c/common.c">
+                    <CompilerOptions>
+                        <StringListMapOptions>
+                            <StringListMapEntry>
+<key>CompilerAdditionalOptions</key>
+<value flag="" inheritance="donotinherit">
+    <ListEntry> -DTF_LITE_STATIC_MEMORY -DNDEBUG -DTF_LITE_MCU_DEBUG_LOG --xtensa-core=visionp6_ao -mcoproc -DXTENSA -DMAX_RFFT_PWR=9 -DMIN_RFFT_PWR=MAX_RFFT_PWR -fdata-sections -ffunction-sections -fno-exceptions -fno-unwind-tables -fno-use-cxa-atexit -fmessage-length=0 -fno-threadsafe-statics</ListEntry>
+</value>
+                            </StringListMapEntry>
+                        </StringListMapOptions>
+                    </CompilerOptions>
+                </value>
+            </OverriddenSettingsEntry>
+        </OverriddenSettings>
+    </BuildSettings>
+</BuildTarget>
