@@ -47,8 +47,8 @@
     SRC_TYPE* pdatasrc = (SRC_TYPE*)XI_ARRAY_GET_DATA_PTR(src);
     DST_TYPE* pdatadst = (DST_TYPE*)XI_ARRAY_GET_DATA_PTR(dst);
 
-    SRC_VEC* restrict vpsrc;
-    DST_VEC* restrict vpdst;
+    SRC_VEC* __restrict vpsrc;
+    DST_VEC* __restrict vpdst;
 
     xb_vecNx16U vsrc0, vsrc1, vsrc2, vsrc3;
     xb_vecNx16 vdst0, vdst1, vdst2, vdst3;

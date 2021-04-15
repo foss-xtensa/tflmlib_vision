@@ -10,15 +10,18 @@
 <buildExclusionDatas>
 <exclusionSet name="Default" selected="1">
 <excludedEntry data="/.*/bin/.*"/>
-<excludedEntry data="/.*/tensorflow/lite/micro/examples/person_detection/model_settings\.cc"/>
-<excludedEntry data="/.*/tensorflow/lite/micro/examples/person_detection/person_detection_test\.cc"/>
+<excludedEntry data="/.*/tensorflow/lite/micro/kernels/conv\.cc"/>
+<excludedEntry data="/.*/tensorflow/lite/micro/kernels/pooling\.cc"/>
+<excludedEntry data="/.*/tensorflow/lite/micro/kernels/depthwise_conv\.cc"/>
+<excludedEntry data="/.*/tensorflow/lite/micro/kernels/conv_common\.cc"/>
+<excludedEntry data="/.*/tensorflow/lite/micro/kernels/depthwise_conv_common\.cc"/>
 </exclusionSet>
 </buildExclusionDatas>
 </propertyGroup>
 <propertyGroup name="build.auto.includes">
 <exportDirs autoConsumeDirs="true" includeDepDirs="true" mode="manual">
-<dir>tensorflow/lite/micro</dir>
 <dir>tensorflow/lite/micro/examples/person_detection</dir>
+<dir>tensorflow/lite/micro</dir>
 </exportDirs>
 </propertyGroup>
 <propertyGroup name="library.dependencies">

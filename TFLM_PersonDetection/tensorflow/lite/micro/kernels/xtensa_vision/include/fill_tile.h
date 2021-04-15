@@ -121,7 +121,7 @@ XI_ERR_TYPE MAKE_NAME(xiFillTile3D)(xi_pTile3D dstTile,
   int32_t dim3FillSize = dim3Size;
   int32_t maxLoopCount;
 
-  MORPH_IDT_VECTOR* restrict pdvecOut;
+  MORPH_IDT_VECTOR* __restrict pdvecOut;
   valign vaOutData = IVP_ZALIGN();
   MORPH_IDT_VECTOR vecValue = value;
 

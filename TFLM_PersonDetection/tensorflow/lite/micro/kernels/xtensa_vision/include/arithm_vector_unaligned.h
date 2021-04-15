@@ -63,9 +63,9 @@
     SRC1_TYPE* pdatasrc1 = (SRC1_TYPE*)XI_ARRAY_GET_DATA_PTR(src1);
     DST_TYPE* pdatadst   = (DST_TYPE*) XI_ARRAY_GET_DATA_PTR(dst);
 
-    SRC0_VEC* restrict vpsrc0;
-    SRC1_VEC* restrict vpsrc1;
-    DST_VEC*  restrict vpdst;
+    SRC0_VEC* __restrict vpsrc0;
+    SRC1_VEC* __restrict vpsrc1;
+    DST_VEC*  __restrict vpdst;
 
     valign va_src0, va_src1, va_dst = IVP_ZALIGN();
     int x = 0;

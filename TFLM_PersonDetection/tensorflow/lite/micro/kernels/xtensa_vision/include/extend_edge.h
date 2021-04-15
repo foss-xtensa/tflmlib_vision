@@ -311,7 +311,7 @@ XI_ERR_TYPE MAKE_NAME(xiExtendEdgesConst3D)(xi_pTile3D dstTile,
     int32_t dim1ExtendEdgeSize = dim1Size + dim1Edge1 + dim1Edge2;
     int32_t dim2ExtendEdgeSize = (dim2Size + dim2Edge1 + dim2Edge2) * dstDataPitch1;
 
-    int8_t *restrict pDst3D = (int8_t *)XI_TILE3D_GET_DATA_PTR(dstTile);
+    int8_t *__restrict pDst3D = (int8_t *)XI_TILE3D_GET_DATA_PTR(dstTile);
 
 
     // horizontal top
@@ -339,9 +339,9 @@ XI_ERR_TYPE MAKE_NAME(xiExtendEdgesConst3D)(xi_pTile3D dstTile,
     int32_t verRightHeight = iymax - iymin + 1;
 
 
-    xb_vec2Nx8U *restrict pdvecOut1, *restrict pdvecOut2;
-    uint8_t *restrict pDst1, *restrict pDst2;
-    int8_t *restrict pDst;
+    xb_vec2Nx8U *__restrict pdvecOut1, *__restrict pdvecOut2;
+    uint8_t *__restrict pDst1, *__restrict pDst2;
+    int8_t *__restrict pDst;
 
     /* Most optimal case is when -
        i. dim1 (including edges) has no extra padding
@@ -897,10 +897,10 @@ void MAKE_NAME_1(extendEdges3D, DWH)(xi_pTile3D dstTile,
   valign vaArray;
   int32_t vectorizationWidth = MORPH_VECTORIZATIONWIDTH;
 
-  MORPH_IDT_SCALAR *restrict pDst3D = (MORPH_IDT_SCALAR *)XI_TILE3D_GET_DATA_PTR(dstTile);
-  MORPH_IDT_SCALAR *restrict pArr = (MORPH_IDT_SCALAR *)XI_TILE3D_GET_DATA_PTR(pArray) + dim1Edge1;
+  MORPH_IDT_SCALAR *__restrict pDst3D = (MORPH_IDT_SCALAR *)XI_TILE3D_GET_DATA_PTR(dstTile);
+  MORPH_IDT_SCALAR *__restrict pArr = (MORPH_IDT_SCALAR *)XI_TILE3D_GET_DATA_PTR(pArray) + dim1Edge1;
 
-  MORPH_IDT_VEC *restrict pdvecArr, *restrict pdvecDst;
+  MORPH_IDT_VEC *__restrict pdvecArr, *__restrict pdvecDst;
   MORPH_IDT_VEC dvecArrData;
 
   /* Tile and frame intersection is empty,fill entire tile with edge values */
@@ -1202,10 +1202,10 @@ void MAKE_NAME_1(extendEdges3D, ID16WH)(xi_pTile3D dstTile,
   valign vaArray;
   int32_t vectorizationWidth =  XCHAL_IVPN_SIMD_WIDTH;
 
-  MORPH_IDT_SCALAR *restrict pDst3D = (MORPH_IDT_SCALAR *)XI_TILE3D_GET_DATA_PTR(dstTile);
-  MORPH_IDT_SCALAR *restrict pArr = (MORPH_IDT_SCALAR *)XI_TILE3D_GET_DATA_PTR(pArray) + (dim2Edge1 << 4);
+  MORPH_IDT_SCALAR *__restrict pDst3D = (MORPH_IDT_SCALAR *)XI_TILE3D_GET_DATA_PTR(dstTile);
+  MORPH_IDT_SCALAR *__restrict pArr = (MORPH_IDT_SCALAR *)XI_TILE3D_GET_DATA_PTR(pArray) + (dim2Edge1 << 4);
 
-  MORPH_IDT_VEC *restrict pdvecArr, *restrict pdvecDst;
+  MORPH_IDT_VEC *__restrict pdvecArr, *__restrict pdvecDst;
   MORPH_IDT_VEC dvecArrData;
 
   /* Tile and frame intersection is empty,fill entire tile with edge values */

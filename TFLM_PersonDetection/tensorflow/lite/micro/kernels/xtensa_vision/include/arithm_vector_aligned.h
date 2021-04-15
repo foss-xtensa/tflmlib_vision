@@ -70,9 +70,9 @@
     SRC1_TYPE* psrc1 = (SRC1_TYPE*)XI_TILE_GET_DATA_PTR(src1);
     DST_TYPE*  pdst  = (DST_TYPE*) XI_TILE_GET_DATA_PTR(dst);
 
-    SRC0_VEC* restrict vpsrc0;
-    SRC1_VEC* restrict vpsrc1;
-    DST_VEC*  restrict vpdst;
+    SRC0_VEC* __restrict vpsrc0;
+    SRC1_VEC* __restrict vpsrc1;
+    DST_VEC*  __restrict vpdst;
     int x = 0;
 
 #if UNROLL > 3

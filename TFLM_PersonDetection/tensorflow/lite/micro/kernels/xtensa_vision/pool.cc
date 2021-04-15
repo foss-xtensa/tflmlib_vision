@@ -24,6 +24,7 @@
 #include "xi_core_api.h"
 #include "cnnrt.h"
 #include "utils.h"
+#include <string> //TODO
 
 uint32_t xiPoolGetMemReqd_Context(uint32_t *pContextSize)
 {
@@ -103,7 +104,7 @@ bool poolSetup(pool_params_t* params, const size_t largeBank, const size_t small
     return false;
 }
 
-uint32_t xiAverageEvalQuantized(uint8_t *pContext, uint32_t contextSize, uint8_t *pInput, uint32_t inputSize, uint8_t *pOutput, uint32_t outputSize,
+uint32_t xiAverageEvalQuantized(uint8_t *pContext, uint32_t contextSize, int8_t *pInput, uint32_t inputSize, int8_t *pOutput, uint32_t outputSize,
 	    uint32_t inputN, uint32_t inputH, uint32_t inputW, uint32_t inputD, uint32_t outputN, uint32_t outputH, uint32_t outputW, uint32_t outputD,
 	    uint32_t filterWidth, uint32_t filterHeight, uint32_t strideWidth, uint32_t act_min, uint32_t act_max)
 {
@@ -132,6 +133,7 @@ uint32_t xiAverageEvalQuantized(uint8_t *pContext, uint32_t contextSize, uint8_t
     pPoolParams->zeroPtOutput = 0;
     pPoolParams->reluMin = act_min;
     pPoolParams->reluMax = act_max;
+    pPoolParams->quantTensorSign.dataType = XI_S8;
 
     local_mem_info_t *mem_info = getMeminfoContext();
     size_t bank0Size = mem_info->bank[0].size;
@@ -152,10 +154,18 @@ uint32_t xiAverageEvalQuantized(uint8_t *pContext, uint32_t contextSize, uint8_t
 		{pOutput,},
 		{outputSize, }
 	};
+
+#if FLK_CYCLES
+  int start = XT_RSR_CCOUNT();
+#endif
 #if (REF_FLK_POOL)
 	computeRef(*pPoolParams, &inputs, &outputs);
 #else
 	flk_pool(reinterpret_cast<const uint8_t*>(pPoolParams), &inputs, &outputs);
+#endif
+#if FLK_CYCLES
+    int stop = XT_RSR_CCOUNT();
+    printf("Pooling=%d\n",stop-start);
 #endif
 
 #if !IS_MULTICHANNEL_DMA

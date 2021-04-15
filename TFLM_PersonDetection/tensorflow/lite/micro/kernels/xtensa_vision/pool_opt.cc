@@ -189,8 +189,7 @@ XI_ERR_TYPE xiAvgPoolQuantizeA3D_DWH(const xi_pTile3D inTile, xi_pTile3D outTile
 	 status = xiAvgPoolQuantizeA_U8_DWH(inTile, outTile, (xi_cnn_avgpoolA_params *)param, frame3DSize);
     }
     else if(XI_TILE3D_GET_TYPE(inTile) == XI_TILE3D_S8){
-    	assert(0);
-	    // status = xiAvgPoolQuantizeA_S8_DWH(inTile, outTile, (xi_cnn_avgpoolA_params *)param, frame3DSize);
+	 status = xiAvgPoolQuantizeA_S8_DWH(inTile, outTile, (xi_cnn_avgpoolA_params *)param, frame3DSize);
     }
     return status;
 }
@@ -438,14 +437,29 @@ XI_ERR_TYPE flk_pool(const uint8_t *raw_params,
                         XI_TILE3D_SET_STATUS_FLAGS(tile_input0, 0);
                         INST_EDGE_EXTENSION_BEGIN();
                         // TO DO : update with fast 2d edge extension with asymmetric edge extension support
-                        int32_t zeroPt = (params->type == L2_POOLING) ? params->zeroPtInput :
-                                         (params->type == AVG_POOLING) ? params->zeroPtInput : 0;
-                        XI_CHECK_RESULT(xiExtendEdgesConst3D_U8(tile_input0, zeroPt, frame_size_tile_input0));
+						int32_t zeroPt;
+                        if(tile_type == XI_TILE3D_S8){
+                        	zeroPt = (params->type == L2_POOLING) ? params->zeroPtInput :
+                                         (params->type == AVG_POOLING) ? params->zeroPtInput : -128;
+						}
+						else{
+					          	zeroPt = (params->type == L2_POOLING) ? params->zeroPtInput :
+			                                         (params->type == AVG_POOLING) ? params->zeroPtInput : 0;
+						}
+                        XI_CHECK_RESULT(xiExtendEdgesConst3D_I8(tile_input0, zeroPt, frame_size_tile_input0));
                         INST_EDGE_EXTENSION_END();
                     }
                     INST_KERNEL_BEGIN();
+#if KERNEL_CYCLES
+ 			        int start = XT_RSR_CCOUNT();
+#endif
+
                     XI_CHECK_RESULT((*pool_func)(tile_input0, tile_output0, pool_params, frame_size_tile_input0 ));
-                    INST_KERNEL_END();
+#if KERNEL_CYCLES
+ 			        int stop = XT_RSR_CCOUNT();
+			        printf("AveragePool2D=%d\n",stop-start);
+#endif
+			        INST_KERNEL_END();
                     // wait for overlapping DMA transfer
                     XI_CHECK_RESULT(dma_barrier());
                     // Transfer output tile

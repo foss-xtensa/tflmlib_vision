@@ -20,11 +20,19 @@
 
 ******************************************************************************/
 #include "cnnrt.h"
+#include <string>
 
+// define 1 to use Google's reference implementation, 0 otherwise
+#define FLK_USE_GOOGLE_REF 0
+
+#if !(FLK_USE_GOOGLE_REF)
 // define 1 to use reference implementation, 0 otherwise
 #define REF_FLK_POOL             0
 #define REF_FLK_CONV2D           0
 #define REF_FLK_DEPTHWISE_CONV2D 0
+#endif
+
+#define ENABLE_OUTPUT_DUMP_FILES 0 // when set to 1, dumps output from each op layer
 
 #define XTENSA_BUFFER_SIZE (216 * 1024) // sufficient to hold coeff+biases of every kernel instance
 
@@ -34,8 +42,24 @@ int32_t getTotalCores(void);
 int32_t getMyCore(void);
 void *getScratchpadBuffer(void);
 void xv_memset(int16_t * pMem, int16_t val, size_t size);
+int dumpOutputToFile(std::string filename, int dim0, int dim1, int dim2, int dim3, uint8_t *pData);
 
 #define TIME_STAMP(cyc_cnt)    \
   {                            \
     cyc_cnt = XT_RSR_CCOUNT(); \
   }
+
+#define USER_DEFINED_HOOKS_START()                  \
+  {                                                 \
+    xt_iss_switch_mode(XT_ISS_CYCLE_ACCURATE);      \
+    xt_iss_trace_level(6);                          \
+    xt_iss_client_command("all", "enable");  \
+  }
+
+#define USER_DEFINED_HOOKS_STOP()                    \
+  {                                                  \
+    xt_iss_switch_mode(XT_ISS_FUNCTIONAL);           \
+    xt_iss_trace_level(0);                           \
+    xt_iss_client_command("all", "disable");  \
+  }
+

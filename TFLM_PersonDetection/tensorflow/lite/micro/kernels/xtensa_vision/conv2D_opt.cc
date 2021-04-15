@@ -79,7 +79,7 @@ setup_fixup_tile(const xi_pTile3D outp, xi_pTile fixup, const int32_t isVQ7optim
   XI_TILE_SET_HEIGHT(fixup, XI_TILE3D_GET_DIM3(outp));
 }
 
-
+#if 0
 XI_ERR_TYPE xiConvolvedFixupA3D_GS_MOW1x1(xi_pTile3D inTile,
                                           const xi_pTile4D coeffTile,
                                           const xi_pTile3D outTile,
@@ -99,7 +99,30 @@ XI_ERR_TYPE xiConvolvedFixupA3D_QM32(xi_pTile3D inTile,
   setup_fixup_tile(outTile, fixupTile, 0);
   return(XI_KERNEL_NAME (xiConvolvedFixupA3D_QM32_MxN_U8S32)(inTile, coeffTile, outTile, fixupTile, param));
 }
+#endif
+XI_ERR_TYPE xiConvolveAVQ3D_QM24_S8_DWH(const xi_pTile3D inTile,
+                                         const xi_pTile4D coeffTile,
+                                         const xi_pArray biasArray,
+                                         const xi_pArray outScaleArray,
+                                         const xi_pArray outShiftArray,
+                                         const xi_pTile3D outTile,
+                                         const xi_cnna_conv_params *param)
+{
+  //(void) fixUpTile;
+  return(XI_KERNEL_NAME (xiConvolvedAVQ3D_QM24_S8_DWH)(inTile, coeffTile, biasArray, outScaleArray, outShiftArray, outTile, param));
+}
 
+XI_ERR_TYPE xiConvolveAVQ3D_QM32_S8_DWH(const xi_pTile3D inTile,
+                                         const xi_pTile4D coeffTile,
+                                         const xi_pArray biasArray,
+                                         const xi_pArray outScaleArray,
+                                         const xi_pArray outShiftArray,
+                                         const xi_pTile3D outTile,
+                                         const xi_cnna_conv_params *param)
+{
+  //(void) fixUpTile;
+  return(XI_KERNEL_NAME (xiConvolvedAVQ3D_QM32_S8_DWH)(inTile, coeffTile, biasArray, outScaleArray, outShiftArray, outTile, param));
+}
 void SetTileType(xi_pTile3D tile3DInpA, xi_pTile3D tile3DInpB,
                  xi_pTile3D tile3DOutpA, xi_pTile3D tile3DOutpB,
                  xi_pArray parrPtroffset, xi_pArray parr1DBias,
@@ -639,6 +662,9 @@ XI_ERR_TYPE flk_conv(const uint8_t *raw_params,
   xiConvolvedAVQ3D_f kernelVQ = NULL;
   xiConvolvedA3D_VQ7_QM_f kernel_QMopt = NULL;
   xiConvolvedFixupA3D_f fixup = NULL;
+#if KERNEL_CYCLES
+  int fixupCy = 0;
+#endif
 
   xi_cnna_conv_params xiparams;
   uint8_t *func_params_ptr = (uint8_t *) &xiparams;
@@ -827,6 +853,7 @@ XI_ERR_TYPE flk_conv(const uint8_t *raw_params,
 
   switch (CONV_FLAG_GET_KERNEL_KIND(params->flags))
   {
+#if 0
   case kkGS_MOW1x1:
     XI_TILE4D_SET_DATA_ORDER(tile4DCoeffA, XI_WHDN);
     XI_TILE4D_SET_DIM1(tile4DCoeffA, params->kernelW);
@@ -879,7 +906,43 @@ XI_ERR_TYPE flk_conv(const uint8_t *raw_params,
     kernel = XI_KERNEL_NAME(xiConvolvedA3D_QM24_MxN_U8S8U8);
     fixup = xiConvolvedFixupA3D_QM32;
     break;
+#endif
+  case kkVQ_QM24:
+  case kkVQ_QM32:
+      XI_TILE4D_SET_DATA_ORDER(tile4DCoeffA, XI_NDWH);
+      XI_TILE4D_SET_TYPE(tile4DCoeffA, XI_TILE4D_S8);
+      //XI_TILE4D_SET_DIM1(tile4DCoeffA, params->tile.D);
+      XI_TILE4D_SET_DIM2(tile4DCoeffA, params->input.D);
+      XI_TILE4D_SET_DIM3(tile4DCoeffA, params->kernelW);
+      XI_TILE4D_SET_DIM4(tile4DCoeffA, params->kernelH);
+      //XI_TILE4D_SET_DIM1_PITCH(tile4DCoeffA, params->tile.D);
+      //XI_TILE4D_SET_DIM2_PITCH(tile4DCoeffA, params->input.D * XI_TILE4D_GET_DIM1_PITCH(tile4DCoeffA));
+      //XI_TILE4D_SET_DIM3_PITCH(tile4DCoeffA, params->kernelW * XI_TILE4D_GET_DIM2_PITCH(tile4DCoeffA));
 
+      XI_TILE4D_SET_DATA_ORDER(tile4DCoeffB, XI_NDWH);
+      XI_TILE4D_SET_TYPE(tile4DCoeffB, XI_TILE4D_S8);
+      //XI_TILE4D_SET_DIM1(tile4DCoeffB, params->tile.D);
+      XI_TILE4D_SET_DIM2(tile4DCoeffB, params->input.D);
+      XI_TILE4D_SET_DIM3(tile4DCoeffB, params->kernelW);
+      XI_TILE4D_SET_DIM4(tile4DCoeffB, params->kernelH);
+      //XI_TILE4D_SET_DIM1_PITCH(tile4DCoeffA, params->tile.D);
+      //XI_TILE4D_SET_DIM2_PITCH(tile4DCoeffA, params->input.D * XI_TILE4D_GET_DIM1_PITCH(tile4DCoeffA));
+      //XI_TILE4D_SET_DIM3_PITCH(tile4DCoeffA, params->kernelW * XI_TILE4D_GET_DIM2_PITCH(tile4DCoeffA));
+      if (CONV_FLAG_GET_KERNEL_KIND(params->flags) == kkVQ_QM24)
+      {
+          kernelVQ = XI_KERNEL_NAME(xiConvolveAVQ3D_QM24_S8_DWH);
+#if DEBUG_LEVEL_CONV > 1
+          printf("#   Conv type: xiConvolveAVQ3D_QM24_S8_DWH\n");
+#endif
+      }
+      else
+      {
+          kernelVQ = XI_KERNEL_NAME(xiConvolveAVQ3D_QM32_S8_DWH);
+#if DEBUG_LEVEL_CONV > 1
+          printf("#   Conv type: xiConvolveAVQ3D_QM32_S8_DWH\n");
+#endif
+      }
+      break;
   default:
     return(XI_ERR_BADARG);
   }
@@ -1143,7 +1206,13 @@ XI_ERR_TYPE flk_conv(const uint8_t *raw_params,
                 XI_CNNA_CONV_SET_ZEROPT_COEFF(&xiparams, params->zeroPtCoeff + 128);
             }
             INST_KERNEL_BEGIN();
+#if KERNEL_CYCLES
+			int start = XT_RSR_CCOUNT();
+#endif
             XI_CHECK_RESULT(fixup(tile3DInpA, tile4DCoeffA, tile3DOutpA, &structs.fixupTile, &xiparams));
+#if KERNEL_CYCLES
+			fixupCy = XT_RSR_CCOUNT() - start;
+#endif
             INST_KERNEL_END();
             XI_CNNA_CONV_SET_ZEROPT_COEFF(&xiparams, params->zeroPtCoeff);
           }
@@ -1220,9 +1289,16 @@ XI_ERR_TYPE flk_conv(const uint8_t *raw_params,
             */
             /* Call XI kernel */
             INST_KERNEL_BEGIN();
+#if KERNEL_CYCLES
+			int start = XT_RSR_CCOUNT();
+#endif
 
             //convolvedA3D_func(tile3DInpA, &arrPtrOffset, tile4DCoeffA, &arr1DBias, &structs.fixupTile, tile3DOutpA, (xi_cnna_conv_params *) func_params_ptr, kernel, kernel_QMopt, params->isVQ7optimize);
             kernel_func(tile3DInpA, &arrPtrOffset, tile4DCoeffA, &arr1DBias, &structs.fixupTile, &arr1DOutScale, &arr1DOutShift, tile3DOutpA, params, (xi_cnna_conv_params *) func_params_ptr, kernel, kernelVQ, kernel_QMopt);
+#if KERNEL_CYCLES
+			int stop = XT_RSR_CCOUNT();
+			printf("Conv2D=%d\n",fixupCy + stop-start);
+#endif
 
             INST_KERNEL_END();
             // PRELU Activation

@@ -130,13 +130,13 @@ int setupDeviceMemoryLayout(uint32_t *sizes,
 
 struct XtensaOperationArgsIn {
   uint32_t numArgs;
-  uint8_t *args[XTENSA_OPERATION_MAX_NUM_INPUTS];
+  int8_t *args[XTENSA_OPERATION_MAX_NUM_INPUTS];
   uint32_t argsSize[XTENSA_OPERATION_MAX_NUM_INPUTS];
 };
 
 struct XtensaOperationArgsOut {
   uint32_t numArgs;
-  uint8_t *args[XTENSA_OPERATION_MAX_NUM_OUTPUTS];
+  int8_t *args[XTENSA_OPERATION_MAX_NUM_OUTPUTS];
   uint32_t argsSize[XTENSA_OPERATION_MAX_NUM_OUTPUTS];
 };
 

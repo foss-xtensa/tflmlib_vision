@@ -39,9 +39,10 @@ uint32_t xiConvGetMemReqd_Coeff(
 uint32_t xiConvDoCoeffReorder(uint8_t *pContext, uint32_t contextSize,
              uint8_t *reordCoeffnBias, uint32_t reordCoeffnBiasSize,
              uint8_t *pFilter, int32_t *pBias);
-uint32_t xiConv(uint8_t *pContext, uint32_t contextSize, uint8_t * input,
-             uint32_t inputSize, uint8_t * output, uint32_t outputSize,
-             uint8_t *reordCoeffnBias, uint32_t reordCoeffnBiasSize);
+uint32_t xiConv(uint8_t *pContext, uint32_t contextSize, int8_t * input,
+             uint32_t inputSize, int8_t * output, uint32_t outputSize,
+             int8_t *reordCoeffnBias, uint32_t reordCoeffnBiasSize,
+             int32_t *outScale, int8_t *outShift, uint32_t outShiftSize);
 
 // depthwise conv apis
 uint32_t xiDepthwiseConvGetMemReqd_Context(uint32_t *pContextSize);
@@ -59,13 +60,14 @@ uint32_t xiDepthwiseConvDoCoeffReorder(uint8_t *pContext, uint32_t contextSize,
           uint8_t *reordCoeffnBias, uint32_t reordCoeffnBiasSize,
           uint8_t *pFilter, int32_t *pBias);
 uint32_t xiDepthwiseConv(uint8_t *pContext, uint32_t contextSize,
-          uint8_t * input, uint32_t inputSize, uint8_t * output,
-          uint32_t outputSize, uint8_t *reordCoeffnBias,
-          uint32_t reordCoeffnBiasSize);
+          int8_t * input, uint32_t inputSize, int8_t * output,
+          uint32_t outputSize, int8_t *reordCoeffnBias,
+          uint32_t reordCoeffnBiasSize, int32_t *outScale, int8_t *outShift, uint32_t num_channels,
+          uint32_t paddingWidth, uint32_t paddingHeight);
 
 // pooling apis
 uint32_t xiAverageEvalQuantized(uint8_t *pContext, uint32_t contextSize,
-      uint8_t *pInput, uint32_t inputSize, uint8_t *pOutput, uint32_t outputSize,
+      int8_t *pInput, uint32_t inputSize, int8_t *pOutput, uint32_t outputSize,
       uint32_t inputN, uint32_t inputH, uint32_t inputW, uint32_t inputD,
       uint32_t outputN, uint32_t outputH, uint32_t outputW, uint32_t outputD,
       uint32_t filterWidth, uint32_t filterHeight, uint32_t strideWidth,

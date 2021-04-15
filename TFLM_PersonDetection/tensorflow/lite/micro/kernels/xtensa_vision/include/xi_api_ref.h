@@ -124,6 +124,14 @@ _XI_APIREF_ XI_ERR_TYPE xiCopyTile_ref(const xi_pArray src, xi_pArray dst, int b
 #define xiCopyTile_S32_ref(s,d,e) xiCopyTile_ref((xi_pArray)(s), (xi_pArray)(d), sizeof(int32_t), e)
 
 
+_XI_APIREF_ XI_ERR_TYPE xiDepthwiseMultiplierConvolvedAVQ3D_S8_DWH_ref(const xi_pTile3D inTile,
+                                                                       const xi_pTile3D coeffTile,
+                                                                       const xi_pArray biasArray,
+                                                                       const xi_pArray scaleArray,
+                                                                       const xi_pArray shiftArray,
+                                                                       xi_pTile3D outTile,
+                                                                       const xi_cnna_depthwiseDilatedConv_params *param);
+
 /* exchange tile data  */
 _XI_APIREF_ XI_ERR_TYPE xiSwapTiles_ref(xi_pArray t1, xi_pArray t2, int element_size, xi_bool with_edge_extension);
 

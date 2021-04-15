@@ -133,11 +133,11 @@ XI_ERR_TYPE xiAvgPoolQuantizeA3D_MxN_I8_reff(const xi_pTile3D inTile,
     const int8_t edgeExtendTop,
     const int8_t edgeExtendBottom)
 {
-    if (!xiTile3DIsValid_U8_ref(inTile))
+    if (!xiTile3DIsValid_I8_ref(inTile))
     {
         return(XI_ERR_BADARG);
     }
-    if (!xiTile3DIsValid_U8_ref(outTile))
+    if (!xiTile3DIsValid_I8_ref(outTile))
     {
         return(XI_ERR_BADARG);
     }
@@ -214,12 +214,12 @@ XI_ERR_TYPE xiAvgPoolQuantizeA3D_MxN_I8_reff(const xi_pTile3D inTile,
     int32_t activation_max = XI_CNN_AVGPOOLA_GET_MAX_VAL(param);
 
     /* Initialize Data Pointers for Input and Output Tiles */
-    uint8_t* pInData = (uint8_t*)XI_TILE3D_GET_DATA_PTR(inTile);
-    uint8_t* pOutData = (uint8_t*)XI_TILE3D_GET_DATA_PTR(outTile);
+    int8_t* pInData = (int8_t*)XI_TILE3D_GET_DATA_PTR(inTile);
+    int8_t* pOutData = (int8_t*)XI_TILE3D_GET_DATA_PTR(outTile);
 
     /* Loop Variables */
     int32_t x, y, z, kx, ky, dIdx, isPosFrameEdge, inX, inY;
-    uint8_t inData;
+    int8_t inData;
 
     for (z = 0; z < numCh; z++)                   // Along output channels
     {
@@ -270,7 +270,7 @@ XI_ERR_TYPE xiAvgPoolQuantizeA3D_MxN_I8_reff(const xi_pTile3D inTile,
                 const int32_t output = MultiplyByQuantizedMultiplierSmallerThanOne(shifted_avg_val, output_multiplier, output_shift) + output_zeropoint;
                 avgVal = max(activation_min, min(activation_max, output));
 
-                pOutData[z * outP3 + y * outP2 + x * outP1] = (uint8_t)avgVal;
+                pOutData[z * outP3 + y * outP2 + x * outP1] = (int8_t)avgVal;
             }       //for (x = 0; x < outDataWidth; x++)
         }         //for (y = 0; y < outDataHeight; y++)
     }           //for (z = 0; z < numCh; z++)
@@ -452,8 +452,8 @@ void computeRef(const pool_params_t& params, struct XtensaOperationArgsIn *input
     	extern uint8_t* mInput;
         extern uint8_t* mOutput;
 #else
-    	uint8_t* mInput = (uint8_t *)input->args[0] ; // todo batch; "(uint8_t *)input->args[0] + b * tile_size"
-        uint8_t* mOutput = (uint8_t *)output->args[0];
+    	int8_t* mInput = (int8_t *)input->args[0] ; // todo batch; "(uint8_t *)input->args[0] + b * tile_size"
+        int8_t* mOutput = (int8_t *)output->args[0];
 #endif
         XI_TILE3D_SET_BUFF_PTR(&inTile, &mInput[i * XI_TILE3D_GET_BUFF_SIZE(&inTile)]);
         XI_TILE3D_SET_DATA_PTR(&inTile, &mInput[i * XI_TILE3D_GET_BUFF_SIZE(&inTile)]);

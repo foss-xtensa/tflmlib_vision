@@ -65,8 +65,8 @@
     SRC_TYPE* psrc = (SRC_TYPE*)XI_ARRAY_GET_DATA_PTR(src);
     DST_TYPE* pdst = (DST_TYPE*)XI_ARRAY_GET_DATA_PTR(dst);
 
-    SRC_VEC* restrict vpsrc;
-    DST_VEC* restrict vpdst;
+    SRC_VEC* __restrict vpsrc;
+    DST_VEC* __restrict vpdst;
 
     int x = 0;
 
