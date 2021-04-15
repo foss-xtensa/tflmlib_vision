@@ -234,6 +234,8 @@ typedef struct PACKED
   int32_t isVQ7optimize;
   size_t coeff_reord_size;
   size_t bias_reord_size;
+  size_t scale_size;
+  size_t shift_size;
   // minVal == 0, maxVal = 255 ???
 } conv_params_t;
 

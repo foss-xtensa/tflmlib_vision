@@ -34,6 +34,13 @@ typedef XI_ERR_TYPE (*xiDepthwiseConvolvedA3D_f)(const xi_pTile3D inTile,
                                                  xi_pTile3D outTile,
                                                  const xi_cnna_conv_params *param);
 
+typedef XI_ERR_TYPE (*xiDepthwiseConvolvedAVQ3D_f)(const xi_pTile3D inTile,
+                                                   const xi_pTile3D coeffTile,
+                                                   const xi_pArray biasArray,
+                                                   const xi_pArray outScaleArray,
+                                                   const xi_pArray outShiftArray,
+                                                   xi_pTile3D outTile,
+                                                   const xi_cnna_conv_params *param);
 
 /* Setup output tile based on coordinates and params. */
 static inline void
@@ -171,11 +178,17 @@ XI_ERR_TYPE flk_depthwise_conv(const uint8_t *raw_params,
         XI_RUN_TIME_CHECK(params->structSize == sizeof(*params),
                           "Params structure size is incorrect", XI_ERR_BADARG);
         XI_RUN_TIME_CHECK(input != NULL
-                          && input->numArgs == 3
+                      && (input->numArgs == 3 || input->numArgs == 5)
                           && input->args[0] != NULL && input->argsSize[0] > 0
                           && input->args[1] != NULL && input->argsSize[1] > 0
                           && input->args[2] != NULL && input->argsSize[2] > 0,
                           "Invalid input args", XI_ERR_BADARG);
+	    if (input->numArgs == 5)
+	    {
+	      XI_RUN_TIME_CHECK(input->args[3] != NULL && input->argsSize[3] > 0
+	                        && input->args[4] != NULL && input->argsSize[4] > 0,
+	                        "Invalid input args", XI_ERR_BADARG);
+	    }
         XI_RUN_TIME_CHECK(output != NULL
                           && output->numArgs == 1
                           && output->args[0] != NULL && output->argsSize[0] > 0,
@@ -224,6 +237,8 @@ XI_ERR_TYPE flk_depthwise_conv(const uint8_t *raw_params,
     uint8_t* buffInputB = NULL;
     uint8_t* buffOutputA = NULL;
     uint8_t* buffOutputB = NULL;
+	uint8_t* buffOutScale = NULL;
+	uint8_t* buffOutShift = NULL;
 
     struct {
         xi_tile3D tiles3D[6];
@@ -236,9 +251,12 @@ XI_ERR_TYPE flk_depthwise_conv(const uint8_t *raw_params,
     xi_pTile3D tile3DOutpA, tile3DOutpB;
     xi_pTile3D tile3DCoeffA, tile3DCoeffB;
 
+  xi_array arr1DOutScale, arr1DOutShift;
+
     xi_size3D frame_size_tile3DInp;
 
     xiDepthwiseConvolvedA3D_f kernel = NULL;
+  xiDepthwiseConvolvedAVQ3D_f kernelVQ = NULL;
 
     /* Double buffer if more than one tile */
     int doubleBuffCoeff = mem_info.numTilesD > 1;
@@ -285,6 +303,16 @@ XI_ERR_TYPE flk_depthwise_conv(const uint8_t *raw_params,
     if (buffCoeffA == NULL) XI_CHECK_RESULT(arena_alloc((void**)(&buffCoeffA),/* bank */ (params->banks_info.bankAssignments & (1 << 5)? 0 : 1), /* size */ mem_info.coeffTileSize, /* alignment */ ALIGNMENT));
     if (doubleBuffCoeff)
         XI_CHECK_RESULT(arena_alloc((void**)(&buffCoeffB),/* bank */ (params->banks_info.bankAssignments & (1 << 6)? 1 : 0), /* size */ mem_info.coeffTileSize, /* alignment */ ALIGNMENT));
+	if (mem_info.outScaleSize)
+	{
+		arena_alloc((void * *) (&buffOutScale), /* bank */ (params->banks_info.bankAssignments & (1 << 7) ? 1 : 0), /* size */ mem_info.outScaleSize, /* alignment */ ALIGNMENT);
+		if (buffOutScale == NULL) XI_CHECK_RESULT(arena_alloc((void * *) (&buffOutScale), /* bank */ (params->banks_info.bankAssignments & (1 << 7) ? 1 : 0), /* size */ mem_info.outScaleSize, /* alignment */ ALIGNMENT));
+	}
+	if (mem_info.outShiftSize)
+	{
+		arena_alloc((void * *) (&buffOutShift), /* bank */ (params->banks_info.bankAssignments & (1 << 8) ? 1 : 0), /* size */ mem_info.outShiftSize, /* alignment */ ALIGNMENT);
+		if (buffOutShift == NULL) XI_CHECK_RESULT(arena_alloc((void * *) (&buffOutShift), /* bank */ (params->banks_info.bankAssignments & (1 << 8) ? 1 : 0), /* size */ mem_info.outShiftSize, /* alignment */ ALIGNMENT));
+	}
 
 #if DEBUG_LEVEL_CONV > 1
     void print_conv_params(const char * name, const void *raw_params);
@@ -314,6 +342,17 @@ XI_ERR_TYPE flk_depthwise_conv(const uint8_t *raw_params,
     uint8_t *coeffPtr = (uint8_t *)input->args[1];
     uint8_t *biasPtr = (uint8_t *)input->args[2];
     uint8_t *outputPtr = (uint8_t *)output->args[0];
+
+  int32_t *outScalePtr;
+  int8_t *outShiftPtr;
+
+  if (input->numArgs == 5)
+  {
+    outScalePtr = (int32_t *) input->args[3];
+    outShiftPtr = (int8_t *) input->args[4];
+    dma_1d_sys2loc_straddles(/* src */ outScalePtr, /* dst */ buffOutScale, /* row size */ mem_info.outScaleSize);
+    dma_1d_sys2loc_straddles(/* src */ outShiftPtr, /* dst */ buffOutShift, /* row size */ mem_info.outShiftSize);
+  }
 
     dma_1d_sys2loc_straddles(/* src */ biasPtr, /* dst */ buffBias, /* row size */ mem_info.biasTileSize);
 
@@ -347,7 +386,12 @@ XI_ERR_TYPE flk_depthwise_conv(const uint8_t *raw_params,
     XI_TILE3D_SET_DATA_ORDER(tile3DCoeffB, XI_DWH);
     XI_TILE3D_SET_DIM2(tile3DCoeffB, params->kernelW);
     XI_TILE3D_SET_DIM3(tile3DCoeffB, params->kernelH);
-    XI_TILE3D_SET_TYPE(tile3DCoeffB, XI_TILE3D_S8);
+    XI_TILE3D_SET_TYPE(tile3DCoeffB, XI_TILE3D_U8);
+    if (CONV_FLAG_GET_KERNEL_KIND(params->flags) == kkVQ_Depthwise)
+    {
+      XI_TILE3D_SET_TYPE(tile3DCoeffA, XI_TILE3D_S8);
+      XI_TILE3D_SET_TYPE(tile3DCoeffB, XI_TILE3D_S8);
+	}
 
     /* Setup output tiles */
     XI_TILE3D_SET_BUFF_SIZE(tile3DOutpA, mem_info.outpTileSize);
@@ -362,6 +406,11 @@ XI_ERR_TYPE flk_depthwise_conv(const uint8_t *raw_params,
     XI_TILE3D_SET_DATA_ORDER(tile3DOutpB, XI_DWH);
     XI_TILE3D_SET_TYPE(tile3DOutpB, XI_TILE3D_U8);
 
+    if (CONV_FLAG_GET_KERNEL_KIND(params->flags) == kkVQ_Depthwise)
+    {
+      XI_TILE3D_SET_TYPE(tile3DOutpA, XI_TILE3D_S8);
+      XI_TILE3D_SET_TYPE(tile3DOutpB, XI_TILE3D_S8);
+	}
 
     XI_TILE3D_SET_BUFF_SIZE(tile3DInpA, mem_info.inpTileSize);
     XI_TILE3D_SET_BUFF_PTR(tile3DInpA, buffInputA);
@@ -385,10 +434,26 @@ XI_ERR_TYPE flk_depthwise_conv(const uint8_t *raw_params,
     XI_TILE3D_SET_DIM3_EDGE1(tile3DInpB, edge_top);
     XI_TILE3D_SET_DIM3_EDGE2(tile3DInpB, edge_bottom);
 
+    if (CONV_FLAG_GET_KERNEL_KIND(params->flags) == kkVQ_Depthwise)
+    {
+      XI_TILE3D_SET_TYPE(tile3DInpA, XI_TILE3D_S8);
+      XI_TILE3D_SET_TYPE(tile3DInpB, XI_TILE3D_S8);
+	}
+
 
     frame_size_tile3DInp.dim1Size = params->input.D;
     frame_size_tile3DInp.dim2Size = params->input.W;
     frame_size_tile3DInp.dim3Size = params->input.H;
+
+	XI_ARRAY_SET_BUFF_SIZE(&arr1DOutScale, mem_info.outScaleSize);
+	XI_ARRAY_SET_BUFF_PTR(&arr1DOutScale, buffOutScale);
+	XI_ARRAY_SET_HEIGHT(&arr1DOutScale, 1);
+	XI_ARRAY_SET_TYPE(&arr1DOutScale, XI_ARRAY_S32);
+
+	XI_ARRAY_SET_BUFF_SIZE(&arr1DOutShift, mem_info.outShiftSize);
+	XI_ARRAY_SET_BUFF_PTR(&arr1DOutShift, buffOutShift);
+	XI_ARRAY_SET_HEIGHT(&arr1DOutShift, 1);
+	XI_ARRAY_SET_TYPE(&arr1DOutShift, XI_ARRAY_S8);
 
     XI_ARRAY_SET_BUFF_SIZE(&structs.arr1DBias, mem_info.biasTileSize);
     XI_ARRAY_SET_BUFF_PTR(&structs.arr1DBias, buffBias);
@@ -417,8 +482,16 @@ XI_ERR_TYPE flk_depthwise_conv(const uint8_t *raw_params,
         if (params->kernelW == 3 && params->kernelH == 3)
         {
             kernel = XI_KERNEL_NAME(xiDepthwiseConvolveA2D_S_3x3_U8Ca2_MOD_DWH);
+            kernelVQ = XI_KERNEL_NAME(xiDepthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH);
 #if DEBUG_LEVEL_CONV > 1
-            printf("#   Conv type: xiDepthwiseConvolveA2D_S_3x3_U8Ca2_MOD_DWH\n");
+			if (CONV_FLAG_GET_KERNEL_KIND(params->flags) == kkDepthwise)
+			{
+				printf("#   Conv type: xiDepthwiseConvolveA2D_S_3x3_U8Ca2_MOD_DWH\n");
+			}
+			else
+			{
+				printf("#   Conv type: xiDepthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH\n");
+			}
 #endif
         }
         else {
@@ -525,21 +598,57 @@ XI_ERR_TYPE flk_depthwise_conv(const uint8_t *raw_params,
                     XI_ARRAY_SET_WIDTH(&structs.arr1DBias, XI_TILE3D_GET_DIM1(tile3DOutpA));
                     XI_ARRAY_SET_CAPACITY(&structs.arr1DBias, XI_TILE3D_GET_DIM1(tile3DOutpA));
 
+					XI_ARRAY_SET_DATA_PTR(&arr1DOutScale, (int32_t *) XI_ARRAY_GET_BUFF_PTR(&arr1DOutScale) + D * params->tile.D);
+					XI_ARRAY_SET_WIDTH(&arr1DOutScale, XI_TILE3D_GET_DIM1(tile3DOutpA));
+					XI_ARRAY_SET_CAPACITY(&arr1DOutScale, XI_TILE3D_GET_DIM1(tile3DOutpA));
+
+					XI_ARRAY_SET_DATA_PTR(&arr1DOutShift, (int32_t *) XI_ARRAY_GET_BUFF_PTR(&arr1DOutShift) + D * params->tile.D);
+					XI_ARRAY_SET_WIDTH(&arr1DOutShift, XI_TILE3D_GET_DIM1(tile3DOutpA));
+					XI_ARRAY_SET_CAPACITY(&arr1DOutShift, XI_TILE3D_GET_DIM1(tile3DOutpA));
                     /* Call XI kernel */
-                    if (depthMultiplier == 1)
+#if KERNEL_CYCLES
+					int start = XT_RSR_CCOUNT();
+#endif
+					if (depthMultiplier == 1)
                     {
-                        INST_KERNEL_BEGIN();
-                        XI_CHECK_RESULT(kernel(tile3DInpA, tile3DCoeffA, &structs.arr1DBias, tile3DOutpA, &structs.xiparams));
-                        INST_KERNEL_END();
-                    }
+						if (CONV_FLAG_GET_KERNEL_KIND(params->flags) == kkVQ_Depthwise)
+						{
+						  INST_KERNEL_BEGIN();
+						  XI_CHECK_RESULT(kernelVQ(tile3DInpA, tile3DCoeffA, &structs.arr1DBias, &arr1DOutScale, &arr1DOutShift, tile3DOutpA, &structs.xiparams));
+						  INST_KERNEL_END();
+						}
+						else
+						{
+						  INST_KERNEL_BEGIN();
+						  XI_CHECK_RESULT(kernel(tile3DInpA, tile3DCoeffA, &structs.arr1DBias, tile3DOutpA, &structs.xiparams));
+						  INST_KERNEL_END();
+						}
+					}
 					else // (depthMultiplier > 1)
 					{
-                        INST_KERNEL_BEGIN();
-                        XI_CHECK_RESULT(xiDepthwiseMultiplierConvolvedA3D_U8_DWH(tile3DInpA, tile3DCoeffA,
-                            &structs.arr1DBias, tile3DOutpA, &structs.xiparams_dm));
-                        INST_KERNEL_END();
-                    }
-                    /* Wait for overlapping DMA transfers */
+						if (CONV_FLAG_GET_KERNEL_KIND(params->flags) == kkVQ_Depthwise)
+						{
+						  INST_KERNEL_BEGIN();
+#ifdef IVP_NOT_AVAILABLE
+						  XI_CHECK_RESULT(xiDepthwiseMultiplierConvolvedAVQ3D_S8_DWH_ref(tile3DInpA, tile3DCoeffA, &structs.arr1DBias, &arr1DOutScale, &arr1DOutShift, tile3DOutpA, &structs.xiparams_dm));
+#else
+						  XI_CHECK_RESULT(xiDepthwiseMultiplierConvolvedAVQ3D_S8_DWH(tile3DInpA, tile3DCoeffA, &structs.arr1DBias, &arr1DOutScale, &arr1DOutShift, tile3DOutpA, &structs.xiparams_dm));
+#endif
+						  INST_KERNEL_END();
+						}
+						else                                             // (depthMultiplier > 1)
+						{
+						  INST_KERNEL_BEGIN();
+						  XI_CHECK_RESULT(xiDepthwiseMultiplierConvolvedA3D_U8_DWH(tile3DInpA, tile3DCoeffA,
+						                                                           &structs.arr1DBias, tile3DOutpA, &structs.xiparams_dm));
+						  INST_KERNEL_END();
+						}
+					}
+#if KERNEL_CYCLES
+					int stop = XT_RSR_CCOUNT();
+					printf("DepthwiseConv2D=%d\n",stop-start);
+#endif
+					/* Wait for overlapping DMA transfers */
                     XI_CHECK_RESULT(dma_barrier());
 
                     /* Async transfer output tile */

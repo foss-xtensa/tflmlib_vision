@@ -77,6 +77,66 @@ void xv_memset(int16_t * pMem, int16_t val, size_t size)
 	return;
 }
 
+xi_bool xiTile3DIsValid_S8_ref(const xi_pTile3D p)
+{
+  // memory is allocated
+  if (p == 0)
+  {
+    return(0);
+  }
+
+  const int max_mes_len = 50;
+  char fname[max_mes_len];
+  if (XI_TYPE_IS_TILE3D(XI_TILE3D_GET_TYPE(p)))
+  {
+    sprintf(fname, "xiTile3DIsValid_S8_ref");
+  }
+  else
+  {
+    return(0);
+  }
+
+  if (XI_TILE3D_GET_BUFF_PTR(p) == 0)
+  {
+    printf("%s: Buffer pointer is zero\n", fname);
+    return(0);
+  }
+
+  if(!( (XI_TYPE_ELEMENT_TYPE(XI_TILE3D_GET_TYPE(p)) == XI_S8 ) &&
+        (XI_TYPE_IS_TILE3D(XI_TILE3D_GET_TYPE(p)))) )
+  {
+    printf("%s: Datatype is not valid\n", fname);
+    return(0);
+  }
+
+  // stride has to be not smaller than width
+  if (XI_TILE3D_GET_DIM1_PITCH(p) < XI_TILE3D_GET_DIM1(p) + XI_TILE3D_GET_DIM1_EDGE1(p) + XI_TILE3D_GET_DIM1_EDGE2(p))
+  {
+    printf("%s: Dim1Pitch is smaller than width\n", fname);
+    return(0);
+  }
+
+  // edge extension should start inside the buffer
+  if ((int8_t *) XI_TILE3D_GET_DATA_PTR(p) - XI_TILE3D_GET_DIM1_EDGE1(p) - XI_TILE3D_GET_DIM1_PITCH(p) * XI_TILE3D_GET_DIM2_EDGE1(p) \
+      < (int8_t *) XI_TILE3D_GET_BUFF_PTR(p))
+  {
+    printf("%s: The pointer on the top left corner of data is out of the buffer\n", fname);
+    return(0);
+  }
+
+  // consistency with buf size
+  if ((XI_TILE3D_GET_BUFF_SIZE(p) < (uint32_t)((XI_TILE3D_GET_DIM1(p) + XI_TILE3D_GET_DIM1_EDGE1(p) + XI_TILE3D_GET_DIM1_EDGE2(p))    \
+                                     * (XI_TILE3D_GET_DIM2(p) + XI_TILE3D_GET_DIM2_EDGE1(p) + XI_TILE3D_GET_DIM2_EDGE2(p))  \
+                                     * (XI_TILE3D_GET_DIM3(p) + XI_TILE3D_GET_DIM3_EDGE1(p) + XI_TILE3D_GET_DIM3_EDGE2(p))) \
+       * XI_ARRAY_GET_ELEMENT_SIZE(p)))
+  {
+    printf("%s: The buffer size is not consistent with dimensions in the tile\n", fname);
+    return(0);
+  }
+
+  return(1);
+}
+
 xi_bool xiTile3DIsValid_U8_ref(const xi_pTile3D p)
 {
     // memory is allocated
@@ -136,6 +196,37 @@ xi_bool xiTile3DIsValid_U8_ref(const xi_pTile3D p)
     return(1);
 }
 
+xi_bool xiTile3DCheckType_ref(const xi_pTile3D p, uint16_t type)
+{
+  uint16_t tileType = XI_TILE3D_GET_TYPE(p);
+
+  if((XI_TYPE_ELEMENT_TYPE(tileType) == type ) && (XI_TYPE_IS_TILE3D(tileType)))
+  {
+    return 1;
+  }
+  else
+  {
+    return 0;
+  }
+}
+xi_bool xiTile3DIsValid_I8_ref(const xi_pTile3D p)
+{
+  if(p == NULL)
+  {
+    return(0);
+  }
+
+  if (xiTile3DCheckType_ref(p, XI_U8))
+  {
+    return(xiTile3DIsValid_U8_ref(p));
+  }
+  if (xiTile3DCheckType_ref(p, XI_S8))
+  {
+    return(xiTile3DIsValid_S8_ref(p));
+  }
+  return(0);
+}
+
 xi_bool xiTile4DIsValid_U8_ref(const xi_pTile4D p)
 {
   // memory is allocated
@@ -190,6 +281,68 @@ xi_bool xiTile4DIsValid_U8_ref(const xi_pTile4D p)
     * (XI_TILE4D_GET_DIM2(p) + XI_TILE4D_GET_DIM2_EDGE1(p) + XI_TILE4D_GET_DIM2_EDGE2(p))  \
     * (XI_TILE4D_GET_DIM3(p) + XI_TILE4D_GET_DIM3_EDGE1(p) + XI_TILE4D_GET_DIM3_EDGE2(p)) * XI_TILE4D_GET_DIM4(p)) \
     * XI_ARRAY_GET_ELEMENT_SIZE(p)))
+  {
+    printf("%s: The buffer size is not consistent with dimensions in the tile\n", fname);
+    return(0);
+  }
+
+  return(1);
+}
+
+xi_bool xiTile4DIsValid_S8_ref(const xi_pTile4D p)
+{
+  // memory is allocated
+  if (p == 0)
+  {
+    return(0);
+  }
+
+  const int max_mes_len = 50;
+  char fname[max_mes_len];
+  if (XI_TYPE_IS_TILE4D(XI_TILE4D_GET_TYPE(p)))
+  {
+    sprintf(fname, "xiTile4DIsValid_S8_ref");
+  }
+  else
+  {
+    return(0);
+  }
+
+  if (XI_TILE4D_GET_BUFF_PTR(p) == 0)
+  {
+    printf("%s: Buffer pointer is zero\n", fname);
+    return(0);
+  }
+
+  if(!( (XI_TYPE_ELEMENT_TYPE(XI_TILE4D_GET_TYPE(p)) == XI_S8 ) &&
+          (XI_TYPE_IS_TILE4D(XI_TILE4D_GET_TYPE(p)))) )
+  {
+    printf("%s: Datatype is not valid\n", fname);
+    return(0);
+  }
+
+  // stride has to be not smaller than width
+  if (XI_TILE4D_GET_DIM1_PITCH(p) < XI_TILE4D_GET_DIM1(p) + XI_TILE4D_GET_DIM1_EDGE1(p) + XI_TILE4D_GET_DIM1_EDGE2(p))
+  {
+    printf("%s: Dim1Pitch is smaller than width\n", fname);
+    return(0);
+  }
+
+  // edge extension should start inside the buffer
+  if ((int8_t *) XI_TILE4D_GET_DATA_PTR(p) - XI_TILE4D_GET_DIM1_EDGE1(p) - \
+       XI_TILE4D_GET_DIM1_PITCH(p) * XI_TILE4D_GET_DIM2_EDGE1(p) -         \
+       XI_TILE4D_GET_DIM2_PITCH(p) * XI_TILE4D_GET_DIM3_EDGE1(p)           \
+      < (int8_t *) XI_TILE4D_GET_BUFF_PTR(p))
+  {
+    printf("%s: The pointer on the top left corner of data is out of the buffer\n", fname);
+    return(0);
+  }
+
+  // consistency with buf size
+  if ((XI_TILE4D_GET_BUFF_SIZE(p) < (uint32_t)((XI_TILE4D_GET_DIM1(p) + XI_TILE4D_GET_DIM1_EDGE1(p) + XI_TILE4D_GET_DIM1_EDGE2(p))                  \
+                                     * (XI_TILE4D_GET_DIM2(p) + XI_TILE4D_GET_DIM2_EDGE1(p) + XI_TILE4D_GET_DIM2_EDGE2(p))                          \
+                                     * (XI_TILE4D_GET_DIM3(p) + XI_TILE4D_GET_DIM3_EDGE1(p) + XI_TILE4D_GET_DIM3_EDGE2(p)) * XI_TILE4D_GET_DIM4(p)) \
+       * XI_ARRAY_GET_ELEMENT_SIZE(p)))
   {
     printf("%s: The buffer size is not consistent with dimensions in the tile\n", fname);
     return(0);
@@ -257,4 +410,93 @@ static xi_bool xiDataContainerIsValid_S32_ref(const xi_pArray p, const int edge_
 xi_bool xiArrayIsValid_S32_ref(const xi_pArray p)
 {
   return(xiDataContainerIsValid_S32_ref(p, 0, 0));
+}
+
+static xi_bool xiDataContainerIsValid_S8_ref(const xi_pArray p, const int edge_w, const int edge_h)
+{
+  // memory is allocated
+  if (p == 0)
+  {
+    return(0);
+  }
+
+  const int max_mes_len = 50;
+  char fname[max_mes_len];
+  if (XI_ARRAY_IS_TILE(p))
+  {
+    sprintf(fname, "xiTileIsValid_S8_ref");
+  }
+  else
+  {
+    sprintf(fname, "xiArrayIsValid_S8_ref");
+  }
+  char edge_ext_mes[max_mes_len];
+  if (XI_ARRAY_IS_TILE(p))
+  {
+    sprintf(edge_ext_mes, " with edges ");
+  }
+  else
+  {
+    sprintf(edge_ext_mes, " ");
+  }
+
+  if (XI_ARRAY_GET_BUFF_PTR(p) == 0)
+  {
+    printf("%s: Buffer pointer is zero\n", fname);
+    return(0);
+  }
+  if (!(XI_TYPE_ELEMENT_TYPE(XI_ARRAY_GET_TYPE(p)) == XI_S8))
+  {
+    printf("%s: Datatype is not valid\n", fname);
+    return(0);
+  }
+
+  // stride has to be not smaller than width
+  if (XI_ARRAY_GET_PITCH(p) < XI_ARRAY_GET_WIDTH(p) + edge_w * 2)
+  {
+    printf("%s: Pitch is smaller than width\n", fname);
+    return(0);
+  }
+
+  // edge extension should start inside the buffer
+  if ((uint8_t *)XI_ARRAY_GET_DATA_PTR(p) - edge_w - XI_ARRAY_GET_PITCH(p) * edge_h < (uint8_t *)XI_ARRAY_GET_BUFF_PTR(p))
+  {
+    printf("%s: The pointer on the top left corner of data%sis out of the buffer\n", fname, edge_ext_mes);
+    return(0);
+  }
+
+  // edge extension should fit into the buffer
+  if (XI_ARRAY_GET_BUFF_SIZE(p) != (uint16_t)-1)
+  {
+    if ((uint8_t *)XI_ARRAY_GET_DATA_PTR(p) + XI_ARRAY_GET_PITCH(p) * (XI_ARRAY_GET_HEIGHT(p) + edge_h - 1) + XI_ARRAY_GET_WIDTH(p) + edge_w
+  >(uint8_t *) XI_ARRAY_GET_BUFF_PTR(p) + XI_ARRAY_GET_BUFF_SIZE(p))
+    {
+      printf("%s: The pointer on the bottom right corner of data%sis out of the buffer\n", fname, edge_ext_mes);
+      return(0);
+    }
+  }
+
+  return(1);
+}
+
+xi_bool xiArrayIsValid_S8_ref(const xi_pArray p)
+{
+  return(xiDataContainerIsValid_S8_ref(p, 0, 0));
+}
+
+int dumpOutputToFile(std::string filename, int dim0, int dim1, int dim2, int dim3, uint8_t *pData)
+{
+  int i;
+  FILE *op;
+  int outputSize = dim0 * dim1 * dim2 * dim3;
+  if (!(op=fopen(filename.c_str(), "w")))
+    exit(-1);
+    fprintf(op, "dims:%d, %d, %d, %d \n", dim0, dim1, dim2, dim3);
+  for (i = 0; i < outputSize; i++)
+    {
+      fprintf(op,"[%d]=%d,", i, pData[i]);
+      if ((i%10)==0) fprintf(op, "\n");
+    }
+    fclose(op);
+    return 0;
 }

@@ -117,55 +117,66 @@ XI_ERR_TYPE MAKE_NAME(xiAvgPoolQuantizeA, DWH)(const xi_pTile3D inTile,
     XI_CHECK_TILE3D_DATA_ORDER(inTile, XI_DWH);
     XI_CHECK_TILE3D_DATA_ORDER(outTile, XI_DWH);
     XI_CHECK_ERROR((XI_CNN_AVGPOOLA_GET_STRIDE(param) > 0 && \
-      XI_CNN_AVGPOOLA_GET_STRIDE(param) <= 8),
-      XI_ERR_BADARG, "Stride provided is not supported.");
-    XI_CHECK_ERROR((XI_CNN_AVGPOOLA_GET_STRIDEX(param) == XI_CNN_AVGPOOLA_GET_STRIDEY(param)),
-      XI_ERR_BADARG, "Unequal stride values for width and height is not supported.");
-    XI_CHECK_ERROR((XI_CNN_AVGPOOLA_GET_KERNELWIDTH(param) > 0) && \
-      (XI_CNN_AVGPOOLA_GET_KERNELHEIGHT(param) > 0), \
-      XI_ERR_KSIZE, "Kernel height and width should be greater than 0");
-    XI_CHECK_ERROR(((XI_CNN_AVGPOOLA_GET_KERNELWIDTH(param) <= 128) && \
-      XI_CNN_AVGPOOLA_GET_KERNELHEIGHT(param) <= 128), \
-      XI_ERR_KSIZE, "Kernel height and width should be less or equal to 128");
-    XI_CHECK_ERROR((XI_CNN_AVGPOOLA_GET_SHIFT_OUT(param) >= 0 && \
-      XI_CNN_AVGPOOLA_GET_SHIFT_OUT(param) < 32), XI_ERR_NORM, \
-      "Output shift is not in between 0 and 32");
-    XI_CHECK_ERROR((XI_CNN_AVGPOOLA_GET_LEFT_SHIFT(param) >= 0 && \
-      XI_CNN_AVGPOOLA_GET_LEFT_SHIFT(param) < 24), XI_ERR_NORM, \
-      "Left shift is not in between 0 and 24");
+                   XI_CNN_AVGPOOLA_GET_STRIDE(param) <= 8), XI_ERR_BADARG, \
+                   "\nStride = %hhu, Stride provided should be greater than 0 and less than or equal to 8", XI_CNN_POOLING_GET_STRIDE(param));
+    XI_CHECK_ERROR((XI_CNN_AVGPOOLA_GET_STRIDEX(param) == XI_CNN_AVGPOOLA_GET_STRIDEY(param)), XI_ERR_BADARG, \
+                   "\nStride along width = %hhu, height = %hhu\nUnequal stride values for width and height is not supported.", \
+                   XI_CNN_POOLING_GET_STRIDEX(param), XI_CNN_POOLING_GET_STRIDEY(param));
+    XI_CHECK_ERROR((XI_CNN_AVGPOOLA_GET_KERNELWIDTH(param) > 0) && (XI_CNN_AVGPOOLA_GET_KERNELHEIGHT(param) > 0), XI_ERR_KSIZE, \
+                   "\nKernel width = %hhu, height = %hhu\nKernel height and width should be greater than 0", \
+                   XI_CNN_AVGPOOLA_GET_KERNELWIDTH(param), XI_CNN_AVGPOOLA_GET_KERNELHEIGHT(param));
+    XI_CHECK_ERROR(((XI_CNN_AVGPOOLA_GET_KERNELWIDTH(param) <= 128) && XI_CNN_AVGPOOLA_GET_KERNELHEIGHT(param) <= 128), XI_ERR_KSIZE, \
+                   "\nKernel width = %hhu, height = %hhu\nKernel height and width should be less or equal to 128", \
+                   XI_CNN_AVGPOOLA_GET_KERNELWIDTH(param), XI_CNN_AVGPOOLA_GET_KERNELHEIGHT(param));
+    XI_CHECK_ERROR((XI_CNN_AVGPOOLA_GET_SHIFT_OUT(param) >= 0 && XI_CNN_AVGPOOLA_GET_SHIFT_OUT(param) < 32), XI_ERR_NORM, \
+                   "\nOutput shift  = %d, Output shift is not in between 0 and 32", XI_CNN_AVGPOOLA_GET_SHIFT_OUT(param));
+    XI_CHECK_ERROR((XI_CNN_AVGPOOLA_GET_LEFT_SHIFT(param) >= 0 && XI_CNN_AVGPOOLA_GET_LEFT_SHIFT(param) < 24), XI_ERR_NORM, \
+                   "\nLeft shift = %d, Left shift is not in between 0 and 24", XI_CNN_AVGPOOLA_GET_LEFT_SHIFT(param));
     XI_CHECK_ZEROPOINT_AVGPOOLAQUANT(inTile, param);
     XI_CHECK_CONSISTENCY_POOL_DWH(inTile, outTile, param);
-    XI_CHECK_ERROR((frame3DSize.dim1Size > 0) && (frame3DSize.dim2Size > 0) \
-      && (frame3DSize.dim3Size) > 0,
-      XI_ERR_DATASIZE, "Frame Dimensions should be greater than 0");
+    XI_CHECK_ERROR((frame3DSize.dim1Size > 0) && (frame3DSize.dim2Size > 0) && (frame3DSize.dim3Size) > 0, XI_ERR_DATASIZE, \
+                   "\nFrame dim1 = %d, dim2 = %d, dim3 = %d\nFrame Dimensions should be greater than 0", \
+                   frame3DSize.dim1Size, frame3DSize.dim2Size, frame3DSize.dim3Size);
     XI_CHECK_MINMAX_AVGPOOLAQUANT(inTile, param);
     if ((XI_CNN_AVGPOOLA_GET_KERNELWIDTH(param) % 2 != 0) || (XI_CNN_AVGPOOLA_GET_LEFTEDGE_FLAG(param) != 0))
     {
       XI_CHECK_ERROR(XI_TILE3D_GET_DIM2_COORD(inTile) - (XI_CNN_AVGPOOLA_GET_KERNELWIDTH(param) / 2) + (XI_CNN_AVGPOOLA_GET_KERNELWIDTH(param) - 1) >= 0,
-        XI_ERR_COORD, "At least one pixel in the first window should be valid. tileCoordX - minLeftEdgeU + (kernelWidth - 1) >= 0");
+                     XI_ERR_COORD, "\ntileCoordX = %d, minLeftEdgeU =%d, kernelWidth = %hhu\nAt least one pixel in the first window should be valid. tileCoordX - minLeftEdgeU + (kernelWidth - 1) >= 0", \
+                     XI_TILE3D_GET_DIM2_COORD(inTile), XI_CNN_AVGPOOLA_GET_KERNELWIDTH(param) / 2, XI_CNN_AVGPOOLA_GET_KERNELWIDTH(param));
       XI_CHECK_ERROR(XI_TILE3D_GET_DIM2_COORD(inTile) - (XI_CNN_AVGPOOLA_GET_KERNELWIDTH(param) / 2) + (XI_TILE3D_GET_DIM2(outTile) - 1) * XI_CNN_AVGPOOLA_GET_STRIDE(param) < frame3DSize.dim2Size,
-        XI_ERR_COORD, "At least one pixel in the last window should be valid. tileCoordX - minLeftEdgeU + (outWidth - 1)*stride < frameWidth");
+                     XI_ERR_COORD, "\ntileCoordX = %d, minLeftEdgeU =%d, outWidth = %d, stride = %hhu, frame dim3 = %d\nAt least one pixel in the last window should be valid.\
+                     tileCoordX - minLeftEdgeU + (outWidth - 1)*stride < frameWidth", XI_TILE3D_GET_DIM2_COORD(inTile), XI_CNN_AVGPOOLA_GET_KERNELWIDTH(param) / 2, \
+                     XI_TILE3D_GET_DIM2(outTile), XI_CNN_AVGPOOLA_GET_STRIDE(param), frame3DSize.dim2Size);
     }
     else
     {
       XI_CHECK_ERROR(XI_TILE3D_GET_DIM2_COORD(inTile) - (XI_CNN_AVGPOOLA_GET_KERNELWIDTH(param) / 2 - 1) + (XI_CNN_AVGPOOLA_GET_KERNELWIDTH(param) - 1) >= 0,
-        XI_ERR_COORD, "At least one pixel in the first window should be valid. tileCoordX - minLeftEdgeU + (kernelWidth - 1) >= 0");
+                     XI_ERR_COORD, "\ntileCoordX = %d, minLeftEdgeU =%d, kernelWidth = %hhu\nAt least one pixel in the first window should be valid. tileCoordX - minLeftEdgeU + (kernelWidth - 1) >= 0", \
+                     XI_TILE3D_GET_DIM2_COORD(inTile), XI_CNN_AVGPOOLA_GET_KERNELWIDTH(param) / 2, XI_CNN_AVGPOOLA_GET_KERNELWIDTH(param));
       XI_CHECK_ERROR(XI_TILE3D_GET_DIM2_COORD(inTile) - (XI_CNN_AVGPOOLA_GET_KERNELWIDTH(param) / 2 - 1) + (XI_TILE3D_GET_DIM2(outTile) - 1) * XI_CNN_AVGPOOLA_GET_STRIDE(param) < frame3DSize.dim2Size,
-        XI_ERR_COORD, "At least one pixel in the last window should be valid. tileCoordX - minLeftEdgeU + (outWidth - 1)*stride < frameWidth");
+                     XI_ERR_COORD, "\ntileCoordX = %d, minLeftEdgeU =%d, outWidth = %d, stride = %hhu, frame dim3 = %d\nAt least one pixel in the last window should be valid. \
+                     tileCoordX - minLeftEdgeU + (outWidth - 1)*stride < frameWidth", XI_TILE3D_GET_DIM2_COORD(inTile), XI_CNN_AVGPOOLA_GET_KERNELWIDTH(param) / 2, \
+                     XI_TILE3D_GET_DIM2(outTile), XI_CNN_AVGPOOLA_GET_STRIDE(param), frame3DSize.dim2Size);
     }
     if ((XI_CNN_AVGPOOLA_GET_KERNELHEIGHT(param) % 2 != 0) || (XI_CNN_AVGPOOLA_GET_TOPEDGE_FLAG(param) != 0))
     {
       XI_CHECK_ERROR(XI_TILE3D_GET_DIM3_COORD(inTile) - (XI_CNN_AVGPOOLA_GET_KERNELHEIGHT(param) / 2) + (XI_CNN_AVGPOOLA_GET_KERNELHEIGHT(param) - 1) >= 0,
-        XI_ERR_COORD, "At least one pixel in the first window should be valid. tileCoordY - minTopEdgeU + (kernelHeight - 1) >= 0");
+                     XI_ERR_COORD, "\ntileCoordY = %d, minTopEdgeU =%d, kernelHeight = %hhu\nAt least one pixel in the first window should be valid. tileCoordY - minTopEdgeU + (kernelHeight - 1) >= 0", \
+                     XI_TILE3D_GET_DIM3_COORD(inTile), XI_CNN_AVGPOOLA_GET_KERNELHEIGHT(param) / 2, XI_CNN_AVGPOOLA_GET_KERNELHEIGHT(param));
       XI_CHECK_ERROR(XI_TILE3D_GET_DIM3_COORD(inTile) - (XI_CNN_AVGPOOLA_GET_KERNELHEIGHT(param) / 2) + (XI_TILE3D_GET_DIM3(outTile) - 1) * XI_CNN_AVGPOOLA_GET_STRIDE(param) < frame3DSize.dim3Size,
-        XI_ERR_COORD, "At least one pixel in the last window should be valid. tileCoordY - minTopEdgeU + (outHeight - 1)*stride < frameHeight");
+                     XI_ERR_COORD, "\ntileCoordY = %d, minTopEdgeU =%d, outHeight = %d, stride = %hhu, frame dim3 = %d\nAt least one pixel in the last window should be valid. \
+                     tileCoordY - minTopEdgeU + (outHeight - 1)*stride < frameHeight", XI_TILE3D_GET_DIM3_COORD(inTile), XI_CNN_AVGPOOLA_GET_KERNELHEIGHT(param) / 2, \
+                     XI_TILE3D_GET_DIM3(outTile), XI_CNN_AVGPOOLA_GET_STRIDE(param), frame3DSize.dim3Size);
     }
     else
     {
       XI_CHECK_ERROR(XI_TILE3D_GET_DIM3_COORD(inTile) - (XI_CNN_AVGPOOLA_GET_KERNELHEIGHT(param) / 2 - 1) + (XI_CNN_AVGPOOLA_GET_KERNELHEIGHT(param) - 1) >= 0,
-        XI_ERR_COORD, "At least one pixel in the first window should be valid. tileCoordY - minTopEdgeU + (kernelHeight - 1) >= 0");
+                     XI_ERR_COORD, "\ntileCoordY = %d, minTopEdgeU =%d, kernelHeight = %hhu\nAt least one pixel in the first window should be valid. tileCoordY - minTopEdgeU + (kernelHeight - 1) >= 0", \
+                     XI_TILE3D_GET_DIM3_COORD(inTile), XI_CNN_AVGPOOLA_GET_KERNELHEIGHT(param) / 2, XI_CNN_AVGPOOLA_GET_KERNELHEIGHT(param));
       XI_CHECK_ERROR(XI_TILE3D_GET_DIM3_COORD(inTile) - (XI_CNN_AVGPOOLA_GET_KERNELHEIGHT(param) / 2 - 1) + (XI_TILE3D_GET_DIM3(outTile) - 1) * XI_CNN_AVGPOOLA_GET_STRIDE(param) < frame3DSize.dim3Size,
-        XI_ERR_COORD, "At least one pixel in the last window should be valid. tileCoordY - minTopEdgeU + (outHeight - 1)*stride < frameHeight");
+                     XI_ERR_COORD, "\ntileCoordY = %d, minTopEdgeU =%d, outHeight = %d, stride = %hhu, frame dim3 = %d\nAt least one pixel in the last window should be valid. \
+                     tileCoordY - minTopEdgeU + (outHeight - 1)*stride < frameHeight", XI_TILE3D_GET_DIM3_COORD(inTile), XI_CNN_AVGPOOLA_GET_KERNELHEIGHT(param) / 2, \
+                     XI_TILE3D_GET_DIM3(outTile), XI_CNN_AVGPOOLA_GET_STRIDE(param), frame3DSize.dim3Size);
     }
   }
 
@@ -200,8 +211,8 @@ XI_ERR_TYPE MAKE_NAME(xiAvgPoolQuantizeA, DWH)(const xi_pTile3D inTile,
   int32_t output_multiplier = XI_CNN_AVGPOOLA_GET_MULTIPLIER_OUT(param);
   int32_t output_shift = XI_CNN_AVGPOOLA_GET_SHIFT_OUT(param);
 
-  MORPH_IDT_2Nx8* restrict pdvecOut;
-  MORPH_IDT_2Nx8* restrict pdvecIn;
+  MORPH_IDT_2Nx8* __restrict pdvecOut;
+  MORPH_IDT_2Nx8* __restrict pdvecIn;
   xb_vec2Nx24 daccSum1, daccSum2, daccSum3, daccSum4;
   MORPH_IDT_2Nx8 dvecData1, dvecData2, dvecData3, dvecData4;
 

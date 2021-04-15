@@ -1,9 +1,24 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<BuildTarget version="1.0" tool="xtensa">
+<BuildTarget tool="xtensa" version="1.0">
     <BuildSettings>
         <BaseSettings path="project">
+            <PreprocessorOptions>
+                <StringListMapOptions>
+                    <StringListMapEntry>
+                        <key>Includes</key>
+                        <value flag="-I" inheritance="prepend">
+                            <ListEntry>${workspace_loc:TFmicroPersonDetection_S8}</ListEntry>
+                            <ListEntry>${workspace_loc:TFmicroPersonDetection_S8/tensorflow/lite/micro/tools/make/downloads}</ListEntry>
+                            <ListEntry>${workspace_loc:TFmicroPersonDetection_S8/tensorflow/lite/micro/tools/make/downloads/flatbuffers/include}</ListEntry>
+                            <ListEntry>${workspace_loc:TFmicroPersonDetection_S8/tensorflow/lite/micro/tools/make/downloads/gemmlowp}</ListEntry>
+                            <ListEntry>${workspace_loc:TFmicroPersonDetection_S8/tensorflow/lite/micro/tools/make/downloads/ruy}</ListEntry>
+                            <ListEntry>${workspace_loc:TFmicroPersonDetection_S8/tensorflow/lite/micro/kernels/xtensa_vision/include}</ListEntry>
+                        </value>
+                    </StringListMapEntry>
+                </StringListMapOptions>
+            </PreprocessorOptions>
             <LinkerOptions>
-                <LinkerSupport value="sim" key="-mlsp=" custom="false"/>
+                <LinkerSupport custom="false" key="-mlsp=" value="sim"/>
             </LinkerOptions>
         </BaseSettings>
     </BuildSettings>

@@ -71,9 +71,9 @@
 #include "avg_poolingAQuantized.h"
 #undef INPUT_DATA_TYPE
 
-//#define INPUT_DATA_TYPE  SIGNED8BIT
-//#include "avg_poolingAQuantized.h"
-//#undef INPUT_DATA_TYPE
+#define INPUT_DATA_TYPE  SIGNED8BIT
+#include "avg_poolingAQuantized.h"
+#undef INPUT_DATA_TYPE
 
 #define INPUT_DATA_TYPE  INTEGER8BIT
 #include "extend_edge.h"

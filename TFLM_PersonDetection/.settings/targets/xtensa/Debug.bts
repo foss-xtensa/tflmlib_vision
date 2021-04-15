@@ -2,18 +2,6 @@
 <BuildTarget tool="xtensa" version="1.0">
     <BuildSettings>
         <BaseSettings path="project">
-            <PreprocessorOptions>
-                <StringListMapOptions>
-                    <StringListMapEntry>
-                        <key>Includes</key>
-                        <value flag="-I" inheritance="prepend">
-                            <ListEntry>${workspace_loc:TFmicroPersonDetection}</ListEntry>
-                            <ListEntry>${workspace_loc:TFmicroPersonDetection/tensorflow/lite/micro/tools/make/downloads/flatbuffers/include}</ListEntry>
-                            <ListEntry>${workspace_loc:TFmicroPersonDetection/tensorflow/lite/micro/tools/make/downloads/gemmlowp}</ListEntry>
-                        </value>
-                    </StringListMapEntry>
-                </StringListMapOptions>
-            </PreprocessorOptions>
             <CompilerOptions>
                 <SingleFlagMapOptions>
                     <SingleFlagMapEntry>
@@ -29,10 +17,6 @@
                     <FlagValueMapEntry>
                         <key>Debug</key>
                         <value level="-3" flag="-g" use="true"/>
-                    </FlagValueMapEntry>
-                    <FlagValueMapEntry>
-                        <key>Optimization</key>
-                        <value level="1" flag="-O" use="true"/>
                     </FlagValueMapEntry>
                 </FlagValueMapOptions>
                 <StringListMapOptions>
@@ -56,6 +40,10 @@
                 <BooleanMapOptions>
                     <BooleanMapEntry>
                         <key>CreateMinsize</key>
+                        <value selected="true"/>
+                    </BooleanMapEntry>
+                    <BooleanMapEntry>
+                        <key>GenerateMapFile</key>
                         <value selected="true"/>
                     </BooleanMapEntry>
                 </BooleanMapOptions>

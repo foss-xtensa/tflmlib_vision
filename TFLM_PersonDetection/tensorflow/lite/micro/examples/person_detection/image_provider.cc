@@ -12,19 +12,19 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
-#include "tensorflow/lite/micro/examples/person_detection/person_image_data.h"
-#include "tensorflow/lite/micro/examples/person_detection/no_person_image_data.h"
+#include "tensorflow/lite/micro/tools/make/downloads/person_model_int8/person_image_data.h"
+#include "tensorflow/lite/micro/tools/make/downloads/person_model_int8/no_person_image_data.h"
 #include "tensorflow/lite/micro/examples/person_detection/image_provider.h"
 #include "tensorflow/lite/micro/examples/person_detection/model_settings.h"
 
-static int toggleImage = 0;
+static int toggleImage = 1;
 TfLiteStatus GetImage(tflite::ErrorReporter* error_reporter, int image_width,
-                      int image_height, int channels, uint8_t* image_data) {
-  const uint8_t *person_data;
+                      int image_height, int channels, int8_t* image_data) {
+  const   int8_t *person_data;
   if(toggleImage++ % 2)
-	  person_data = g_person_data;
+	  person_data = (int8_t *)g_person_data;
   else
-	  person_data = g_no_person_data;
+	  person_data = (int8_t *)g_no_person_data;
 
   for (int i = 0; i < image_width * image_height * channels ; ++i) {
 		image_data[i] = person_data[i];

@@ -49,8 +49,9 @@ static bool SetupDepthwise2(conv_params_t *params, conv_mem_info_t *mem_info)
 	int H = params->output.H;
     int W = params->output.W;
 
-    CONV_FLAG_SET_KERNEL_KIND(params->flags, kkDepthwise);
-
+#if (!REF_FLK_DEPTHWISE_CONV2D)
+    CONV_FLAG_SET_KERNEL_KIND(params->flags, kkVQ_Depthwise);
+#endif
     if (params->kernelW <= 16 && params->kernelH <= 16) {
         // Search for fast implementation
         for (unsigned int D = align_up(params->output.D, 32); D > 0; D -= 32) {
@@ -70,34 +71,74 @@ static bool SetupDepthwise2(conv_params_t *params, conv_mem_info_t *mem_info)
     return false;
 }
 
+/* Reorder Coeffecients taken from  xiDepthwiseDilatedConvA_reorderCoeffs */
 static bool
 ConvReorderCoefficients2(const uint8_t *coeff_ref, const int32_t* bias_ref, uint8_t *coeff, int32_t* bias, const conv_params_t *params)
 {
-    int offset = (params->tileType.dataType == XI_TILE3D_S8) ? 0 : 128;
+	uint32_t depthMultiplier = params->output.D / params->input.D;
+	uint32_t height = params->kernelH;
+	uint32_t width = params->kernelW;
+	uint32_t inDepth = params->input.D;
+	/* Both Coeff and Coeff_ref share the same pitch */
+	int32_t pitchW = params->output.D;
+	int32_t pitchH = params->output.D * params->kernelW;
 
-    int tiles_count = (params->output.D + params->tile.D - 1) / params->tile.D;
-
-    switch (CONV_FLAG_GET_KERNEL_KIND(params->flags)) {
-    case kkDepthwise: {
-        memcpy(bias, bias_ref, params->output.D * sizeof(int32_t));
-
-        for (int tile = 0; tile < tiles_count; tile++) {
-            int tile_depth = std::min(params->tile.D, params->output.D - tile * params->tile.D);
-            int tile_depth64 = align_up(tile_depth, 64);
-            for (unsigned int h = 0; h < params->kernelH; h++) {
-                for (unsigned int w = 0; w < params->kernelW; w++) {
-                    int d = 0;
-                    for (; d < tile_depth; d++) {
-                        *coeff++ = coeff_ref[(h * params->kernelW + w) * params->output.D + tile * params->tile.D + d];
-                    }
-                    for (; d < tile_depth64; d++) {
-                        *coeff++ = 0;
-                    }
-                }
+#if (REF_FLK_DEPTHWISE_CONV2D)
+	switch (kkNone)
+#else
+	switch (CONV_FLAG_GET_KERNEL_KIND(params->flags))
+#endif
+	{
+    case kkNone: { // need to convert coeff to S8 for XI-lib kernel
+        for (int32_t h = 0; h < height; h++)
+        {
+          for (int32_t w = 0; w < width; w++)
+          {
+            for (int32_t dm = 0; dm < depthMultiplier; dm++)
+            {
+              for (int32_t d = 0; d < inDepth; d++)
+              {
+                int32_t srcIndex = dm + d * depthMultiplier + w *pitchW + h * pitchH;
+                int32_t dstIndex = d + dm * inDepth + w * pitchW + h * pitchH; ;
+               int8_t srcdata = (int8_t)coeff_ref[srcIndex];
+                coeff[dstIndex] = coeff_ref[srcIndex];
+              }
             }
+          }
+        }
+        for(int32_t j=0; j< depthMultiplier; j++)
+        {
+      	for(int32_t i=0; i< inDepth; i++)
+        	{
+        		int32_t dstIndex = i + j * inDepth;
+        		int32_t srcIndex = i * depthMultiplier + j;
+        		bias[dstIndex] = bias_ref[srcIndex];
+        	}
         }
         break;
-    }
+	}
+    case kkVQ_Depthwise: { // need to convert coeff to S8 for XI-lib kernel
+		int offset = (params->tileType.dataType == XI_TILE3D_S8) ? 0 : 128;
+		int tiles_count = (params->output.D + params->tile.D - 1) / params->tile.D;
+		memcpy(bias, bias_ref, params->output.D * sizeof(int32_t));
+
+		for (int tile = 0; tile < tiles_count; tile++) {
+			int tile_depth = std::min(params->tile.D, params->output.D - tile * params->tile.D);
+			int tile_depth64 = align_up(tile_depth, 64);
+			for (unsigned int h = 0; h < params->kernelH; h++) {
+				for (unsigned int w = 0; w < params->kernelW; w++) {
+					int d = 0;
+					for (; d < tile_depth; d++) {
+						*coeff++ = coeff_ref[(h * params->kernelW + w) * params->output.D + tile * params->tile.D + d];
+					}
+					for (; d < tile_depth64; d++) {
+						*coeff++ = 0;
+					}
+				}
+			}
+		}
+		break;
+	}
     default:
       assert(0);
         return false;
@@ -182,8 +223,8 @@ else
 	return 0;
 }
 
-uint32_t xiDepthwiseConv(uint8_t *pContext, uint32_t contextSize, uint8_t * input, uint32_t inputSize, uint8_t * output, uint32_t outputSize,
-		uint8_t *reordCoeffnBias, uint32_t reordCoeffnBiasSize)
+uint32_t xiDepthwiseConv(uint8_t *pContext, uint32_t contextSize, int8_t * input, uint32_t inputSize, int8_t * output, uint32_t outputSize,
+		int8_t *reordCoeffnBias, uint32_t reordCoeffnBiasSize, int32_t *outScale, int8_t *outShift, uint32_t num_channels,uint32_t paddingWidth, uint32_t paddingHeight)
 {
 	if ( !pContext || (contextSize < sizeof(conv_params_t)) )
 		return 1;
@@ -191,27 +232,49 @@ uint32_t xiDepthwiseConv(uint8_t *pContext, uint32_t contextSize, uint8_t * inpu
 	if (reordCoeffnBiasSize < convParams->coeff_reord_size + sizeof(int32_t) * convParams->bias_reord_size)
 		return 1;
 
-	uint8_t *reordCoeff = reordCoeffnBias;
+	int8_t *reordCoeff = reordCoeffnBias;
 	int32_t *reordBias = (int32_t *)(reordCoeff + convParams->coeff_reord_size);
 
+#if (REF_FLK_DEPTHWISE_CONV2D)
 	XtensaOperationArgsIn inputs = {
-	  3,
+	  7,
 	  {input,
-	  (uint8_t *)reordCoeff,
-	  (uint8_t *)reordBias, },
-	  {inputSize, convParams->coeff_reord_size, sizeof(int32_t) * convParams->bias_reord_size, }
+	  (int8_t *)reordCoeff,
+      (int8_t*)reordBias,
+      (int8_t*)outScale,
+      (int8_t *)outShift,
+	  (int8_t *)&paddingWidth,
+	  (int8_t *)&paddingHeight},
+	  {inputSize, convParams->coeff_reord_size, sizeof(int32_t) * convParams->bias_reord_size, num_channels, num_channels,sizeof(int32_t),sizeof(int32_t) }
 	};
-
+#else
+	XtensaOperationArgsIn inputs = {
+	  5,
+	  {input,
+	  (int8_t *)reordCoeff,
+      (int8_t*)reordBias,
+      (int8_t*)outScale,
+      (int8_t *)outShift},
+	  {inputSize, convParams->coeff_reord_size, sizeof(int32_t) * convParams->bias_reord_size, num_channels, num_channels }
+	};
+#endif
 	struct XtensaOperationArgsOut outputs = {
 	  1,
 	  {output,},
 	  {outputSize, }
 	};
 
+#if FLK_CYCLES
+  int start = XT_RSR_CCOUNT();
+#endif
 #if (REF_FLK_DEPTHWISE_CONV2D)
   flk_depthwise_conv_ref((uint8_t*)convParams, &inputs, &outputs);
 #else
   flk_depthwise_conv(reinterpret_cast<const uint8_t*>(convParams), &inputs, &outputs);
+#endif
+#if FLK_CYCLES
+  int stop = XT_RSR_CCOUNT();
+  printf("DepthwiseConv2D=%d\n",stop-start);
 #endif
 
 #if !IS_MULTICHANNEL_DMA

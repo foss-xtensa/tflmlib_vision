@@ -23,7 +23,6 @@
 #include "include/flk_conv.h"
 #include "include/xi_core_api.h"
 #include "utils.h"
-#include <assert.h>
 
 uint32_t xiConvGetMemReqd_Context(uint32_t *pContextSize)
 {
@@ -52,6 +51,12 @@ static size_t ConvCoefficientsBufferSize2(const conv_params_t *params)
     case kkQM32: {
         coeff_size = align_up(params->kernelW * params->input.D, QM32_ROW_PADDING);
         coeff_size = params->output.D * align_up(coeff_size * params->kernelH, QM32_FILTER_PADDING);
+        break;
+    }
+    case kkVQ_QM24:
+    case kkVQ_QM32: {
+        size_t tiles = (params->output.D + params->tile.D - 1) / params->tile.D;
+        coeff_size *= align_up(params->tile.D, 64) * params->input.D * tiles;
         break;
     }
     case kkGS_MOW1x1: {
@@ -134,11 +139,14 @@ uint32_t xiConvSetContext(uint8_t *pContext, uint32_t contextSize, const uint32_
   convParams->tile.W = convParams->output.W;
   convParams->tile.H = convParams->output.H;
 #if !(REF_FLK_CONV2D)
+#if 0
   if ( (convParams->input.H == 1 && convParams->input.W == 1)
 		  || (convParams->input.D <= 8) )
 	  CONV_FLAG_SET_KERNEL_KIND(convParams->flags, kkGS_MOW1x1);
   else
 	  CONV_FLAG_SET_KERNEL_KIND(convParams->flags, kkQM24);
+#endif
+  CONV_FLAG_SET_KERNEL_KIND(convParams->flags, kkVQ_QM24);
 #endif
 
   // Choose which input to reload if it's inevitable
@@ -150,6 +158,8 @@ uint32_t xiConvSetContext(uint8_t *pContext, uint32_t contextSize, const uint32_
   bool kernel_F16flag = (CONV_FLAG_GET_KERNEL_KIND(convParams->flags) == kkFC_FP16);
   convParams->coeff_reord_size = (ConvCoefficientsBufferSize2(convParams) ) << kernel_F16flag;
   convParams->bias_reord_size = (convParams->output.D ) << kernel_F16flag;
+  convParams->scale_size = align_up((convParams->output.D *sizeof(int32_t)), sizeof(int32_t)) << kernel_F16flag;
+  convParams->shift_size = (convParams->output.D) << kernel_F16flag;
 
   return 0;
 }
@@ -230,6 +240,40 @@ ConvReorderCoefficients2(const uint8_t *coeff_ref, const int32_t* bias_ref, uint
         }
         break;
     }
+    case kkVQ_QM24:
+    case kkVQ_QM32:{
+        int8_t *coeff_s8 = (int8_t *)coeff;
+        for (int tile = 0; tile < tiles_count; tile++) {
+            unsigned int tile_depth = std::min(params->tile.D, params->output.D - tile * params->tile.D);
+            unsigned int tile_depth64 = align_up(tile_depth, 64);
+            //for (unsigned int n = 0; n < tile_depth; n++) {
+                for (unsigned int h = 0; h < params->kernelH; h++) {
+                    for (unsigned int w = 0; w < params->kernelW; w++) {
+                        for (unsigned int ch = 0; ch < params->input.D; ch++) {
+                            unsigned int n = 0;
+                            for (; n < tile_depth; n++) {
+                                int32_t idx = (((tile * params->tile.D + n)* params->kernelH + h) * params->kernelW + w) * params->input.D + ch;
+                                *coeff_s8++ = (int8_t)coeff_ref[idx];
+                            }
+                            for (; n < tile_depth64; n++) {
+                                *coeff_s8++ = 0;
+                            }
+                        }
+                    }
+                }
+            //}
+            // copy bias in one pass
+            uint32_t src_filter_size = params->kernelH * params->kernelW * params->input.D;
+            for (unsigned int d = 0; d < tile_depth; d++) {
+                int fixup = 0;
+                for (unsigned i = 0; i < src_filter_size; i++) {
+                    fixup +=(int8_t)coeff_ref[(tile * params->tile.D  + d) * src_filter_size + i];
+                }
+                *bias++ = *bias_ref++ - (params->zeroPtInput * fixup);
+            }
+        }
+        break;
+    }
     case kkFC: {
         memcpy(coeff, coeff_ref, params->output.D * params->kernelH * params->kernelW * params->input.D);
         memcpy(bias, bias_ref, params->output.D * sizeof(int32_t));
@@ -269,8 +313,8 @@ ConvReorderCoefficients2(const uint8_t *coeff_ref, const int32_t* bias_ref, uint
     return true;
 }
 
-uint32_t xiConv(uint8_t *pContext, uint32_t contextSize, uint8_t * input, uint32_t inputSize, uint8_t * output, uint32_t outputSize,
-		uint8_t *reordCoeffnBias, uint32_t reordCoeffnBiasSize)
+uint32_t xiConv(uint8_t *pContext, uint32_t contextSize, int8_t * input, uint32_t inputSize, int8_t * output, uint32_t outputSize,
+		int8_t *reordCoeffnBias, uint32_t reordCoeffnBiasSize, int32_t *outScale, int8_t *outShift, uint32_t num_channels)
 {
 	if ( !pContext || (contextSize < sizeof(conv_params_t)) )
 		return 1;
@@ -278,15 +322,17 @@ uint32_t xiConv(uint8_t *pContext, uint32_t contextSize, uint8_t * input, uint32
 	if (reordCoeffnBiasSize < convParams->coeff_reord_size + sizeof(int32_t) * convParams->bias_reord_size)
 		return 1;
 
-	uint8_t *reordCoeff = reordCoeffnBias;
+	int8_t *reordCoeff = reordCoeffnBias;
 	int32_t *reordBias = (int32_t *)(reordCoeff + convParams->coeff_reord_size);
 
 	XtensaOperationArgsIn inputs = {
-	  3,
+	  5,
 	  {input,
-	  (uint8_t *)reordCoeff,
-	  (uint8_t *)reordBias, },
-	  {inputSize, convParams->coeff_reord_size, sizeof(int32_t) * convParams->bias_reord_size, }
+	  (int8_t *)reordCoeff,
+      (int8_t*)reordBias,
+      (int8_t*)outScale,
+      (int8_t *)outShift, },
+	  {inputSize, convParams->coeff_reord_size, sizeof(int32_t) * convParams->bias_reord_size, num_channels, num_channels}
 	};
 
 	struct XtensaOperationArgsOut outputs = {
@@ -295,16 +341,23 @@ uint32_t xiConv(uint8_t *pContext, uint32_t contextSize, uint8_t * input, uint32
 	  {outputSize, }
 	};
 
+#if FLK_CYCLES
+    int start = XT_RSR_CCOUNT();
+#endif
 #if (REF_FLK_CONV2D)
 	flk_conv_ref(reinterpret_cast<const uint8_t*>(convParams), &inputs, &outputs);
 #else
 	flk_conv(reinterpret_cast<const uint8_t*>(convParams), &inputs, &outputs);
 #endif //(REF_FLK_CONV2D)
+#if FLK_CYCLES
+    int stop = XT_RSR_CCOUNT();
+    printf("Conv2D=%d\n",stop-start);
+#endif
 
 #if !IS_MULTICHANNEL_DMA
 	dma_barrier();
 #endif
-	return 0;
+    return 0;
 }
 
 uint32_t xiConvDoCoeffReorder(uint8_t *pContext, uint32_t contextSize,

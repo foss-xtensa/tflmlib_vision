@@ -3,17 +3,16 @@
     <BuildSettings>
         <BaseSettings path="project">
             <PreprocessorOptions>
-                <StringListMapOptions>
-                    <StringListMapEntry>
-                        <key>Includes</key>
-                        <value flag="-I" inheritance="prepend">
-                            <ListEntry>${workspace_loc:TFmicroPersonDetection}</ListEntry>
-                            <ListEntry>${workspace_loc:TFmicroPersonDetection/tensorflow/lite/micro/tools/make/downloads/flatbuffers/include}</ListEntry>
-                            <ListEntry>${workspace_loc:TFmicroPersonDetection/tensorflow/lite/micro/tools/make/downloads/gemmlowp}</ListEntry>
-                            <ListEntry>${workspace_loc:TFmicroPersonDetection/tensorflow/lite/micro/tools/make/downloads/ruy}</ListEntry>
+                <KeyValueListMapOptions>
+                    <KeyValueListMapEntry>
+                        <key>Defines</key>
+                        <value flag="-D" inheritance="append">
+                            <ListEntry key="XI_ERROR_LEVEL" value="XI_ERROR_LEVEL_NO_ERROR"/>
+                            <ListEntry key="FLK_CYCLES" value="0"/>
+                            <ListEntry key="KERNEL_CYCLES" value="1"/>
                         </value>
-                    </StringListMapEntry>
-                </StringListMapOptions>
+                    </KeyValueListMapEntry>
+                </KeyValueListMapOptions>
             </PreprocessorOptions>
             <CompilerOptions>
                 <SingleFlagMapOptions>
@@ -51,6 +50,10 @@
                         <key>CreateMinsize</key>
                         <value selected="true"/>
                     </BooleanMapEntry>
+                    <BooleanMapEntry>
+                        <key>GenerateMapFile</key>
+                        <value selected="true"/>
+                    </BooleanMapEntry>
                 </BooleanMapOptions>
                 <StringListMapOptions>
                     <StringListMapEntry>
@@ -60,7 +63,7 @@
                         </value>
                     </StringListMapEntry>
                 </StringListMapOptions>
-                <LinkerSupport custom="true" key="-mlsp=" value="sim64"/>
+                <LinkerSupport custom="false" key="-mlsp=" value="sim-stacklocal"/>
             </LinkerOptions>
         </BaseSettings>
         <OverriddenSettings>

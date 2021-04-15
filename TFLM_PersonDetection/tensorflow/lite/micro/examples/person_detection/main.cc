@@ -14,6 +14,7 @@ limitations under the License.
 ==============================================================================*/
 
 #include "tensorflow/lite/micro/examples/person_detection/main_functions.h"
+#include "tensorflow/lite/micro/kernels/xtensa_vision/utils.h"
 
 #if defined(__XTENSA__)
 #include <xtensa/xt_profiling.h>
@@ -24,14 +25,18 @@ limitations under the License.
 // requirements for entry code (like an app_main function) should specialize
 // this main.cc file in a target-specific subfolder.
 int main(int argc, char* argv[]) {
+  USER_DEFINED_HOOKS_STOP();
   int indx;
+  int framesToProcess = 2;
   setup();
 
-  xt_profile_enable( );
-  for(indx=0;indx < 5;indx++){
+#if (ENABLE_OUTPUT_DUMP_FILES)
+  framesToProcess = 1;
+#endif
+
+  for(indx=0; indx < framesToProcess; indx++){
     loop();
   }
-  xt_profile_disable( );
 
   return 0;
 }

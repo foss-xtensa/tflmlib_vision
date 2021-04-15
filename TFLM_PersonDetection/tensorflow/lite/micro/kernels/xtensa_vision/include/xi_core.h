@@ -70,34 +70,28 @@ _XI_EXTERN_C_ size_t xiFitTile_S16(const xi_pTile donor, xi_pTile rec, int width
 #endif
 
 #if XI_ERROR_LEVEL == XI_ERROR_LEVEL_TERMINATE_ON_ERROR
-#  define XI_CHECK_ERROR(condition, code, wide_description) \
+#  define XI_CHECK_ERROR(condition, code, ...) \
     if (condition) {} else exit(-1)
 #elif XI_ERROR_LEVEL == XI_ERROR_LEVEL_RETURN_ON_ERROR
-#  define XI_CHECK_ERROR(condition, code, wide_description) \
+#  define XI_CHECK_ERROR(condition, code, ...) \
     if (condition) {} else return (code)
 #elif XI_ERROR_LEVEL == XI_ERROR_LEVEL_CONTINUE_ON_ERROR
-#  define XI_CHECK_ERROR(condition, code, wide_description) \
+#  define XI_CHECK_ERROR(condition, code, ...) \
     if (condition) {} else __xi_local_err_code = (code)
 #elif XI_ERROR_LEVEL == XI_ERROR_LEVEL_PRINT_ON_ERROR
-#  define XI_CHECK_ERROR(condition, code, wide_description) \
-    do { if (!(condition)) { printf("%s:%d: Error #%d (%s) in function %s: %s\n", \
-            __FILE__, __LINE__, (int)(code), xiErrStr(code), __func__, wide_description); fflush(stdout); return code; }} while(0)
-#  define XI_CHECK_ERROR2(condition, code, printf_args) \
+#  define XI_CHECK_ERROR(condition, code, ...) \
     do { if (!(condition)) { printf("%s:%d: Error #%d (%s) in function %s: ", __FILE__, __LINE__, (int)(code), xiErrStr(code), __func__); \
-                             printf printf_args ; \
+                             printf (__VA_ARGS__); \
                              printf("\n"); \
                              fflush(stdout); return code; }} while(0)
 #elif XI_ERROR_LEVEL == XI_ERROR_LEVEL_PRINT_AND_CONTINUE_ON_ERROR
-#  define XI_CHECK_ERROR(condition, code, wide_description) \
-    do { if (!(condition)) { printf("%s:%d: Error #%d (%s) in function %s: %s\n", \
-            __FILE__, __LINE__, (int)(code), xiErrStr(code), __func__, wide_description); fflush(stdout); }} while(0)
-#  define XI_CHECK_ERROR2(condition, code, printf_args) \
+#  define XI_CHECK_ERROR(condition, code, ...) \
     do { if (!(condition)) { printf("%s:%d: Error #%d (%s) in function %s: ", __FILE__, __LINE__, (int)(code), xiErrStr(code), __func__); \
-                             printf printf_args ; \
+                             printf (__VA_ARGS__); \
                              printf("\n"); \
-                             fflush(stdout); }} while(0)
+                             fflush(stdout); return code; }} while(0)
 #else
-#  define XI_CHECK_ERROR(condition, code, wide_description)
+#  define XI_CHECK_ERROR(condition, code, ...)
 #endif
 
 #ifndef XI_CHECK_ERROR2
@@ -187,6 +181,7 @@ _XI_EXTERN_C_ size_t xiFitTile_S16(const xi_pTile donor, xi_pTile rec, int width
 
 #define XI_ARRAY_IS_CONSISTENT(a) \
     ((XI_ARRAY_GET_PITCH(a) >= XI_ARRAY_GET_WIDTH(a)) && \
+    (XI_ARRAY_GET_WIDTH(a) > 0) && (XI_ARRAY_GET_HEIGHT(a) > 0) && \
     ((uint8_t*)XI_ARRAY_GET_DATA_PTR(a) >= (uint8_t*)XI_ARRAY_GET_BUFF_PTR(a)) && \
     ((uint8_t*)XI_ARRAY_GET_DATA_PTR(a) + (XI_ARRAY_GET_PITCH(a) * (XI_ARRAY_GET_HEIGHT(a) - 1) + XI_ARRAY_GET_WIDTH(a)) * XI_ARRAY_GET_ELEMENT_SIZE(a) \
                     <= (uint8_t*)XI_ARRAY_GET_BUFF_PTR(a) + XI_ARRAY_GET_BUFF_SIZE(a)))
