@@ -25,7 +25,7 @@ limitations under the License.
 #include "tensorflow/lite/micro/system_setup.h"
 #include "tensorflow/lite/schema/schema_generated.h"
 
-#include "tensorflow/lite/micro/kernels/xtensa_vision/utils.h"
+#include "utils.h"
 
 // Globals, used for compatibility with Arduino-style sketches.
 namespace {
