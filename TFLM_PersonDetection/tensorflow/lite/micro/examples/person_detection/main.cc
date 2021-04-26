@@ -14,7 +14,7 @@ limitations under the License.
 ==============================================================================*/
 
 #include "tensorflow/lite/micro/examples/person_detection/main_functions.h"
-#include "tensorflow/lite/micro/kernels/xtensa_vision/utils.h"
+#include "utils.h"
 
 #if defined(__XTENSA__)
 #include <xtensa/xt_profiling.h>
