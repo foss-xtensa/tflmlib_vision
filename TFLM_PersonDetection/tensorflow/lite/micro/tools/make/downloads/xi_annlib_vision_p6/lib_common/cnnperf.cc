@@ -68,8 +68,8 @@ void _cnnrt_perf_print_exec_info_summary(uint32_t _compute_cycles, uint64_t freq
            (double)_t_macs/(_compute_cycles ? _compute_cycles : 1),
            (double)((double)(_t_macs)/((macs_per_cycle ? macs_per_cycle : PEAK_MACS)*num_cores))*100/(_compute_cycles ? _compute_cycles : 1),
            (unsigned long long)_t_macs,
-           ((float)(frequency * batch * 1000 * 1000)/(_compute_cycles ? _compute_cycles : 1)),
-           (float)frequency,
+           ((double)(frequency * batch * 1000 * 1000)/(_compute_cycles ? _compute_cycles : 1)),
+           (double)frequency,
            temp_buff);
 }
 
@@ -121,7 +121,7 @@ void _cnnrt_perf_print_exec_info(uint64_t frequency,  uint32_t batch, uint64_t _
             (double)_t_macs/(_cnnrt_perf_totalCycles ? _cnnrt_perf_totalCycles : 1),
             (double)((double)(_t_macs)/((macs_per_cycle ? macs_per_cycle : PEAK_MACS)*num_cores))*100/(_cnnrt_perf_totalCycles ? _cnnrt_perf_totalCycles : 1),
             (unsigned long long)_t_macs,
-            ((float)(frequency * batch * 1000 * 1000)/(_cnnrt_perf_totalCycles ? _cnnrt_perf_totalCycles : 1)),
-            (float)frequency,
+            ((double)(frequency * batch * 1000 * 1000)/(_cnnrt_perf_totalCycles ? _cnnrt_perf_totalCycles : 1)),
+            (double)frequency,
             temp_buff);
 }

@@ -252,7 +252,7 @@ int cnnCmpTiles(const char *net, const char *param, void *tileA, void *tileB)
                first_coord[0], first_coord[1], first_coord[2], first_coord[3],
                max_diff, errors);
         if (XI_TYPE_ELEMENT_TYPE(type) == XI_F32) {
-            printf(" - Data range {%f, %f} vs {%f, %f}.\n", fmin_a, fmax_a, fmin_b, fmax_b);
+            printf(" - Data range {%f, %f} vs {%f, %f}.\n", (double)fmin_a, (double)fmax_a, (double)fmin_b, (double)fmax_b);
         } else if (XI_TYPE_ELEMENT_TYPE(type) == XI_U32) {
             printf(" - Data range {%u, %u} vs {%u, %u}.\n", umin_a, umax_a, umin_b, umax_b);
         } else {
@@ -260,7 +260,7 @@ int cnnCmpTiles(const char *net, const char *param, void *tileA, void *tileB)
         }
     } else {
         if (XI_TYPE_ELEMENT_TYPE(type) == XI_F32) {
-            printf("OK. Data range {%f, %f}.\n", fmin_a, fmax_a);
+            printf("OK. Data range {%f, %f}.\n", (double)fmin_a, (double)fmax_a);
         } else if (XI_TYPE_ELEMENT_TYPE(type) == XI_U32) {
             printf("OK. Data range {%u, %u}.\n", umin_a, umax_a);
         } else {
@@ -269,5 +269,3 @@ int cnnCmpTiles(const char *net, const char *param, void *tileA, void *tileB)
     }
     return errors;
 }
-
-

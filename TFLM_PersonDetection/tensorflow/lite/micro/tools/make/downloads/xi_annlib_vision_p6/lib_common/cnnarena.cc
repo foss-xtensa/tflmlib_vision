@@ -554,7 +554,7 @@ XI_ERR_TYPE arena_bank_free_space(uint32_t bank_num, uint32_t *free_space)
 {
     XI_RUN_TIME_CHECK(_arena_state != NULL, "Not initialized", XI_ERR_BADARG);
     XI_RUN_TIME_CHECK(free_space != NULL, "free_space argument cannot be NULL", XI_ERR_NULLARG);
-    XI_RUN_TIME_CHECK(bank_num < _arena_state->banks_count, "Invalid bank num", XI_ERR_BADARG);
+    XI_RUN_TIME_CHECK((int32_t)bank_num < _arena_state->banks_count, "Invalid bank num", XI_ERR_BADARG);
     *free_space = (uint32_t)_arena_state->banks[bank_num].end -
         (uint32_t)_arena_state->banks[bank_num].base;
     return XI_ERR_OK;
@@ -564,7 +564,7 @@ XI_ERR_TYPE arena_bank_free_space_debug(uint32_t bank_num, uint32_t *free_space)
 {
     XI_RUN_TIME_CHECK(_arena_state != NULL, "Not initialized", XI_ERR_BADARG);
     XI_RUN_TIME_CHECK(free_space != NULL, "free_space argument cannot be NULL", XI_ERR_NULLARG);
-    XI_RUN_TIME_CHECK(bank_num < _arena_state->banks_count, "Invalid bank num", XI_ERR_BADARG);
+    XI_RUN_TIME_CHECK((int32_t)bank_num < _arena_state->banks_count, "Invalid bank num", XI_ERR_BADARG);
     *free_space = (uint32_t)_arena_state->banks[bank_num].end -
         (uint32_t)_arena_state->banks[bank_num].pos;
     return XI_ERR_OK;
@@ -572,7 +572,7 @@ XI_ERR_TYPE arena_bank_free_space_debug(uint32_t bank_num, uint32_t *free_space)
 
 void * arena_pinned_buffer(uint32_t bank_num, uint32_t alignment)
 {
-    if (_arena_state == NULL || bank_num >= _arena_state->banks_count) {
+    if (_arena_state == NULL || (int32_t)bank_num >= _arena_state->banks_count) {
         return NULL;
     }
 #if CSTUB_BUILD

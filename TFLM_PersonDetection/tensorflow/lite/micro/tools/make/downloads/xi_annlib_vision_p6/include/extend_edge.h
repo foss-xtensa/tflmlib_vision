@@ -22,23 +22,6 @@
 
 #if ((XCHAL_VISION_TYPE >= 6) && defined(INCLUDE_XI_CNN))
 
-
-static void extendEdgesConst3D_I8(xi_pTile3D dstTile,
-                                  const int32_t constValue,
-                                  xi_size3D frame3DSize);
-
-static void extendEdgesConst3D_I16(xi_pTile3D dstTile,
-                                   const int32_t constValue,
-                                   xi_size3D frame3DSize);
-
-static void extendWHEdges3D_I8(xi_pTile3D dstTile,
-                               const int8_t * pValue,
-                               xi_size3D frame3DSize);
-
-static void extendWHEdges3D_I16(xi_pTile3D dstTile,
-                                const int16_t * pValue,
-                                xi_size3D frame3DSize);
-
 #define INTEGER8BIT  1
 #define INTEGER16BIT 2
 

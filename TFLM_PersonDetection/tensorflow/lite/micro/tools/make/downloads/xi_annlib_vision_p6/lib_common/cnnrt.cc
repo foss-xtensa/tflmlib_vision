@@ -641,7 +641,7 @@ void dma_2d_loc2sys_dyn_ch(int ch,
                            void *src, void *dst, size_t d1_cnt, int d2_src_pitch, int d2_dst_pitch, size_t d2_cnt)
 {
     unsigned added;
-    if (d1_cnt == d2_src_pitch && d1_cnt == d2_dst_pitch) {
+    if ((int)d1_cnt == d2_src_pitch && (int)d1_cnt == d2_dst_pitch) {
         added = add_2d_desc(ch,
                             src, dst, d1_cnt * d2_cnt, d1_cnt * d2_cnt, d1_cnt * d2_cnt, 1,
                             /*added*/ 0, /*isSys2Loc*/ 0, /*straddles*/ 0);
@@ -659,7 +659,7 @@ void dma_2d_sys2loc_dyn_ch(int ch,
                            void *src, void *dst, size_t d1_cnt, int d2_src_pitch, int d2_dst_pitch, size_t d2_cnt)
 {
     unsigned added;
-    if (d1_cnt == d2_src_pitch && d1_cnt == d2_dst_pitch) {
+    if ((int)d1_cnt == d2_src_pitch && (int)d1_cnt == d2_dst_pitch) {
         added = add_2d_desc(ch,
                             src, dst, d1_cnt * d2_cnt, d1_cnt * d2_cnt, d1_cnt * d2_cnt, 1,
                             /*added*/ 0, /*isSys2Loc*/ 1, /*straddles*/ 0);
@@ -751,12 +751,12 @@ void dma_3d_loc2sys_dyn_ch(int ch,
                            int d3_src_pitch, int d3_dst_pitch, size_t d3_cnt)
 {
     /* Fold dimensions if possible */
-    if (d1_cnt == d2_src_pitch
-        && d1_cnt == d2_dst_pitch) {
+    if ((int)d1_cnt == d2_src_pitch
+        && (int)d1_cnt == d2_dst_pitch) {
         dma_2d_loc2sys_dyn_ch(ch,
                               src, dst, d1_cnt * d2_cnt, d3_src_pitch, d3_dst_pitch, d3_cnt);
-    } else if (d2_cnt * d2_src_pitch == d3_src_pitch
-               && d2_cnt * d2_dst_pitch == d3_dst_pitch) {
+    } else if ((int)d2_cnt * d2_src_pitch == d3_src_pitch
+               && (int)d2_cnt * d2_dst_pitch == d3_dst_pitch) {
         dma_2d_loc2sys_dyn_ch(ch,
                               src, dst, d1_cnt, d2_src_pitch, d2_dst_pitch, d2_cnt * d3_cnt);
     } else {
@@ -773,12 +773,12 @@ void dma_3d_sys2loc_dyn_ch(int ch,
                            int d3_src_pitch, int d3_dst_pitch, size_t d3_cnt)
 {
     /* Fold dimensions if possible */
-    if (d1_cnt == d2_src_pitch
-        && d1_cnt == d2_dst_pitch) {
+    if ((int)d1_cnt == d2_src_pitch
+        && (int)d1_cnt == d2_dst_pitch) {
         dma_2d_sys2loc_dyn_ch(ch,
                               src, dst, d1_cnt * d2_cnt, d3_src_pitch, d3_dst_pitch, d3_cnt);
-    } else if (d2_cnt * d2_src_pitch == d3_src_pitch
-               && d2_cnt * d2_dst_pitch == d3_dst_pitch) {
+    } else if ((int)d2_cnt * d2_src_pitch == d3_src_pitch
+               && (int)d2_cnt * d2_dst_pitch == d3_dst_pitch) {
         dma_2d_sys2loc_dyn_ch(ch,
                               src, dst, d1_cnt, d2_src_pitch, d2_dst_pitch, d2_cnt * d3_cnt);
     } else {
@@ -953,7 +953,7 @@ void dma_2d_loc2sys_dyn_straddles_ch(int ch,
                                      void *src, void *dst, size_t d1_cnt, int d2_src_pitch, int d2_dst_pitch, size_t d2_cnt)
 {
     unsigned added;
-    if (d1_cnt == d2_src_pitch && d1_cnt == d2_dst_pitch) {
+    if ((int)d1_cnt == d2_src_pitch && (int)d1_cnt == d2_dst_pitch) {
         added = add_2d_desc(ch,
                             src, dst, d1_cnt * d2_cnt, d1_cnt * d2_cnt, d1_cnt * d2_cnt, 1,
                             /*added*/ 0, /*isSys2Loc*/ 0, /*straddles*/ 1);
@@ -971,7 +971,7 @@ void dma_2d_sys2loc_dyn_straddles_ch(int ch,
                                      void *src, void *dst, size_t d1_cnt, int d2_src_pitch, int d2_dst_pitch, size_t d2_cnt)
 {
     unsigned added;
-    if (d1_cnt == d2_src_pitch && d1_cnt == d2_dst_pitch) {
+    if ((int)d1_cnt == d2_src_pitch && (int)d1_cnt == d2_dst_pitch) {
         added = add_2d_desc(ch,
                             src, dst, d1_cnt * d2_cnt, d1_cnt * d2_cnt, d1_cnt * d2_cnt, 1,
                             /*added*/ 0, /*isSys2Loc*/ 1, /*straddles*/ 1);
@@ -1063,12 +1063,12 @@ void dma_3d_loc2sys_dyn_straddles_ch(int ch,
                                      int d3_src_pitch, int d3_dst_pitch, size_t d3_cnt)
 {
     /* Fold dimensions if possible */
-    if (d1_cnt == d2_src_pitch
-        && d1_cnt == d2_dst_pitch) {
+    if ((int)d1_cnt == d2_src_pitch
+        && (int)d1_cnt == d2_dst_pitch) {
         dma_2d_loc2sys_dyn_straddles_ch(ch,
                                         src, dst, d1_cnt * d2_cnt, d3_src_pitch, d3_dst_pitch, d3_cnt);
-    } else if (d2_cnt * d2_src_pitch == d3_src_pitch
-               && d2_cnt * d2_dst_pitch == d3_dst_pitch) {
+    } else if ((int)d2_cnt * d2_src_pitch == d3_src_pitch
+               && (int)d2_cnt * d2_dst_pitch == d3_dst_pitch) {
         dma_2d_loc2sys_dyn_straddles_ch(ch,
                                         src, dst, d1_cnt, d2_src_pitch, d2_dst_pitch, d2_cnt * d3_cnt);
     } else {
@@ -1085,12 +1085,12 @@ void dma_3d_sys2loc_dyn_straddles_ch(int ch,
                                      int d3_src_pitch, int d3_dst_pitch, size_t d3_cnt)
 {
     /* Fold dimensions if possible */
-    if (d1_cnt == d2_src_pitch
-        && d1_cnt == d2_dst_pitch) {
+    if ((int)d1_cnt == d2_src_pitch
+        && (int)d1_cnt == d2_dst_pitch) {
         dma_2d_sys2loc_dyn_straddles_ch(ch,
                                         src, dst, d1_cnt * d2_cnt, d3_src_pitch, d3_dst_pitch, d3_cnt);
-    } else if (d2_cnt * d2_src_pitch == d3_src_pitch
-               && d2_cnt * d2_dst_pitch == d3_dst_pitch) {
+    } else if ((int)d2_cnt * d2_src_pitch == d3_src_pitch
+               && (int)d2_cnt * d2_dst_pitch == d3_dst_pitch) {
         dma_2d_sys2loc_dyn_straddles_ch(ch,
                                         src, dst, d1_cnt, d2_src_pitch, d2_dst_pitch, d2_cnt * d3_cnt);
     } else {
@@ -1462,5 +1462,3 @@ void cnnrt_deinit()
     _cnnrt_wait_all();
     arena_deinit();
 }
-
-
