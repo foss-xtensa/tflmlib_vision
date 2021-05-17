@@ -59,7 +59,7 @@ typedef XI_ERR_TYPE (*xiConvolvedA3D_VQ7_QM_f)(const xi_pTile3D inTile,
                                                xi_pTile3D outTile,
                                                const xi_cnna_conv_params *param);
 
-
+#if 0
 /* Setup fixup tile parameters acording to output tile parameters */
 INLINE void
 setup_fixup_tile(const xi_pTile3D outp, xi_pTile fixup, const int32_t isVQ7optimize)
@@ -78,7 +78,7 @@ setup_fixup_tile(const xi_pTile3D outp, xi_pTile fixup, const int32_t isVQ7optim
   }
   XI_TILE_SET_HEIGHT(fixup, XI_TILE3D_GET_DIM3(outp));
 }
-
+#endif
 #if 0
 XI_ERR_TYPE xiConvolvedFixupA3D_GS_MOW1x1(xi_pTile3D inTile,
                                           const xi_pTile4D coeffTile,
@@ -658,7 +658,7 @@ XI_ERR_TYPE flk_conv(const uint8_t *raw_params,
   xi_array arr1DBias, arrPtrOffset;
   xi_array arr1DOutScale, arr1DOutShift;
 
-  xiConvolvedA3D_f kernel;
+  xiConvolvedA3D_f kernel = NULL;
   xiConvolvedAVQ3D_f kernelVQ = NULL;
   xiConvolvedA3D_VQ7_QM_f kernel_QMopt = NULL;
   xiConvolvedFixupA3D_f fixup = NULL;
