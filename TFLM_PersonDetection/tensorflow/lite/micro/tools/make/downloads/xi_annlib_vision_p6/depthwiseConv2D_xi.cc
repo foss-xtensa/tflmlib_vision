@@ -243,10 +243,6 @@ XI_ERR_TYPE xiDepthwiseMultiplierConvolvedA3D_U8_DWH(const xi_pTile3D inTile,
   const uint8_t maxLim = enableReLu ? reluMax : UCHAR_MAX;
   int32_t leftShift = outShift < 0 ? -outShift : 0;
   int32_t rightShift = outShift < 0 ? 0 : outShift;
-  uint8_t *__restrict pInData11;
-  uint8_t *__restrict pInData12;
-  uint8_t *__restrict pInData21;
-  uint8_t *__restrict pInData22;
   xb_vecNx8U *__restrict pvecOutData;
   xb_vecNx8U *__restrict pvecFilter;
   xb_vec2Nx8U *__restrict pVecIn0;
@@ -283,8 +279,6 @@ XI_ERR_TYPE xiDepthwiseMultiplierConvolvedA3D_U8_DWH(const xi_pTile3D inTile,
         int32_t enable2Row    = XT_SALT(outY, outHeight - 1);
         for (int32_t outX = 0; outX < outWidth; outX += 8) // process 4 width at once
         {
-            int32_t enable2Col    = XT_SALT(outX, outWidth - 1);
-            int32_t enable2RowCol  = enable2Col * enable2Row;
             for (int32_t ic = 0; ic < inDepth; ic++) // Input depth index
             {
                 for (int32_t m = 0; m < depthMultiplier; m += XCHAL_IVPN_SIMD_WIDTH) // DepthMultiplier used to move about outputDepth
@@ -2148,13 +2142,10 @@ void depthwiseConvolveAVQ2D_S_3x3j2_S8Ca2_MOD_DWH_FOLD2(const xi_pTile3D inTile,
 
   /* Input and Output data vectors */
   xb_vecNx48 accSum, accSum1, accSum2;
-  xb_vecN_2x32v hvecScale1, hvecScale2, hvecScale3, hvecScale4;
+  xb_vecN_2x32v hvecScale1, hvecScale2;
   xb_vecNx16 vecCoeff11, vecCoeff12, vecCoeff13;
   xb_vecNx16 vecCoeff21, vecCoeff22, vecCoeff23;
   xb_vecNx16 vecCoeff31, vecCoeff32, vecCoeff33;
-  xb_vecNx16 vecData11, vecData12, vecData13;
-  xb_vecNx16 vecData21, vecData22, vecData23;
-  xb_vecNx16 vecData31, vecData32, vecData33;
   xb_vecNx16 vecOut, vecOut1;
 
   int32_t vectorizationWidth = 2 * XCHAL_IVPN_SIMD_WIDTH;
@@ -2170,9 +2161,6 @@ void depthwiseConvolveAVQ2D_S_3x3j2_S8Ca2_MOD_DWH_FOLD2(const xi_pTile3D inTile,
     int32_t remBiasLoad = (remainingCh > XCHAL_IVPN_SIMD_WIDTH) ? 1 : 0;
 
     int32_t remCh1 = XT_MIN(((numCh - ch) << 2), 64);
-    int32_t remCh2 = XT_MIN((((numCh - ch) - 16) << 2), 64);
-    int32_t remCh3 = XT_MIN((((numCh - ch) - 32) << 2), 64);
-    int32_t remCh4 = XT_MIN((((numCh - ch) - 48) << 2), 64);
 
     phvecBias = (xb_vecN_2x32v *) (pBiasData);
     xb_vecN_2x32v hvecBias1, hvecBias2;
@@ -2201,7 +2189,6 @@ void depthwiseConvolveAVQ2D_S_3x3j2_S8Ca2_MOD_DWH_FOLD2(const xi_pTile3D inTile,
     xb_vecNx16 vecLeftShift  = 0;
     IVP_SUBNX16T(vecLeftShift, 0, vecShift, vbN);
 
-    xb_vecNx16 vecLeftShiftL, vecLeftShiftH;
     xb_vecN_2x32v hvecLeftShift1 = IVP_UNPKSNX16_L(vecLeftShift);
     xb_vecN_2x32v hvecLeftShift2 = IVP_UNPKSNX16_H(vecLeftShift);
 
@@ -3050,9 +3037,6 @@ void depthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH_FOLD4(const xi_pTile3D inTile,
   xb_vecNx8* __restrict pvecOut;
   xb_vecNx8* __restrict pvecOut1;
   /* Input and Output data Pointers */
-  xb_vecNx16 vecData11, vecData12, vecData13;
-  xb_vecNx16 vecData21, vecData22, vecData23;
-  xb_vecNx16 vecData31, vecData32, vecData33;
   xb_vecNx16 vecOut, vecOut1;
   xb_vecNx16 vecCoeff11, vecCoeff12, vecCoeff13;
   xb_vecNx16 vecCoeff21, vecCoeff22, vecCoeff23;
@@ -3061,7 +3045,6 @@ void depthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH_FOLD4(const xi_pTile3D inTile,
 
   /* Variable Declarations */
   int32_t x, y;
-  int32_t vectorizationWidth = 2 * XCHAL_IVPN_SIMD_WIDTH;
   /* Sequence for select Pattern */
   xb_vec2Nx8 dvecSeq1 = IVP_ADD2NX8(IVP_SEQ2NX8(), numCh);
   vbool2N vbl1        = IVP_GE2NX8(dvecSeq1, numCh * 2);
@@ -3087,7 +3070,7 @@ void depthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH_FOLD4(const xi_pTile3D inTile,
 
   /* Load Scale values */
   phvecOutScale = (xb_vecN_2x32v *) (pOutScale);
-  xb_vecN_2x32v hvecScale1, hvecScale2, hvecScale3, hvecScale4;
+  xb_vecN_2x32v hvecScale1, hvecScale2;
   valign vaOutScale = IVP_LAN_2X32_PP(phvecOutScale);
   IVP_LAVN_2X32_XP(hvecScale1, vaOutScale, phvecOutScale, numCh << 2);
   hvecScale1 = IVP_SELN_2X32I(hvecScale1, hvecScale1, IVP_SELI_32B_EXTRACT_LO_HALVES);
@@ -3105,7 +3088,6 @@ void depthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH_FOLD4(const xi_pTile3D inTile,
   IVP_SUBNX16T(vecLeftShift, 0, vecShift, vbN);
 
   /* Calculate left shift values */
-  xb_vecNx16 vecLeftShiftL, vecLeftShiftH;
   xb_vecN_2x32v hvecLeftShift1 = IVP_UNPKSNX16_L(vecLeftShift);
   xb_vecN_2x32v hvecLeftShift2 = IVP_UNPKSNX16_H(vecLeftShift);
 

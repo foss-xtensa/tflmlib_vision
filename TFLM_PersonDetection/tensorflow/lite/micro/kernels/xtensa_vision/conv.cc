@@ -127,8 +127,6 @@ TfLiteStatus Eval(TfLiteContext* context, TfLiteNode* node) {
       }
 #if (ENABLE_OUTPUT_DUMP_FILES)
       {
-        uint32_t output_size = output->dims->data[0] * output->dims->data[1] *
-                               output->dims->data[2] * output->dims->data[3];
         static int level=0;
 #if (FLK_USE_GOOGLE_REF)
         std::string kernelType = "gref";

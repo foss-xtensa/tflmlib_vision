@@ -100,7 +100,6 @@ ConvReorderCoefficients2(const uint8_t *coeff_ref, const int32_t* bias_ref, uint
               {
                 int32_t srcIndex = dm + d * depthMultiplier + w *pitchW + h * pitchH;
                 int32_t dstIndex = d + dm * inDepth + w * pitchW + h * pitchH; ;
-               int8_t srcdata = (int8_t)coeff_ref[srcIndex];
                 coeff[dstIndex] = coeff_ref[srcIndex];
               }
             }
@@ -118,7 +117,6 @@ ConvReorderCoefficients2(const uint8_t *coeff_ref, const int32_t* bias_ref, uint
         break;
 	}
     case kkVQ_Depthwise: { // need to convert coeff to S8 for XI-lib kernel
-		int offset = (params->tileType.dataType == XI_TILE3D_S8) ? 0 : 128;
 		int tiles_count = (params->output.D + params->tile.D - 1) / params->tile.D;
 		memcpy(bias, bias_ref, params->output.D * sizeof(int32_t));
 
@@ -203,8 +201,6 @@ uint32_t xiDepthwiseConvSetContext(uint8_t *pContext, uint32_t contextSize, cons
 	local_mem_info_t *mem_info = getMeminfoContext();
 	size_t bank0Size = mem_info->bank[0].size;
 	size_t bank1Size = mem_info->bank[1].size;
-	uint32_t largeBank  = std::max(bank0Size, bank1Size);
-	uint32_t smallBank  = std::min(bank0Size, bank1Size);
 
 	mem_inf.localMem.banksNumber = arena_num_banks();
 	mem_inf.localMem.bankSize[0] = bank0Size;
