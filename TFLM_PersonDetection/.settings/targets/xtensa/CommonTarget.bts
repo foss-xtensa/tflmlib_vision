@@ -7,12 +7,14 @@
                     <StringListMapEntry>
                         <key>Includes</key>
                         <value flag="-I" inheritance="prepend">
-                            <ListEntry>${workspace_loc:TFmicroPersonDetection_S8}</ListEntry>
-                            <ListEntry>${workspace_loc:TFmicroPersonDetection_S8/tensorflow/lite/micro/tools/make/downloads}</ListEntry>
-                            <ListEntry>${workspace_loc:TFmicroPersonDetection_S8/tensorflow/lite/micro/tools/make/downloads/flatbuffers/include}</ListEntry>
-                            <ListEntry>${workspace_loc:TFmicroPersonDetection_S8/tensorflow/lite/micro/tools/make/downloads/gemmlowp}</ListEntry>
-                            <ListEntry>${workspace_loc:TFmicroPersonDetection_S8/tensorflow/lite/micro/tools/make/downloads/ruy}</ListEntry>
-                            <ListEntry>${workspace_loc:TFmicroPersonDetection_S8/tensorflow/lite/micro/kernels/xtensa_vision/include}</ListEntry>
+                            <ListEntry>${workspace_loc:TFLM_PersonDetection}</ListEntry>
+                            <ListEntry>${workspace_loc:TFLM_PersonDetection/tensorflow/lite/micro/tools/make/downloads}</ListEntry>
+                            <ListEntry>${workspace_loc:TFLM_PersonDetection/tensorflow/lite/micro/tools/make/downloads/flatbuffers/include}</ListEntry>
+                            <ListEntry>${workspace_loc:TFLM_PersonDetection/tensorflow/lite/micro/tools/make/downloads/gemmlowp}</ListEntry>
+                            <ListEntry>${workspace_loc:TFLM_PersonDetection/tensorflow/lite/micro/tools/make/downloads/ruy}</ListEntry>
+                            <ListEntry>${workspace_loc:TFLM_PersonDetection/tensorflow/lite/micro/kernels/xtensa_vision/include}</ListEntry>
+                            <ListEntry>${workspace_loc:TFLM_PersonDetection/tensorflow/lite/micro/tools/make/downloads/xi_annlib_vision_p6}</ListEntry>
+                            <ListEntry>${workspace_loc:TFLM_PersonDetection/tensorflow/lite/micro/tools/make/downloads/xi_annlib_vision_p6/include}</ListEntry>
                         </value>
                     </StringListMapEntry>
                 </StringListMapOptions>
