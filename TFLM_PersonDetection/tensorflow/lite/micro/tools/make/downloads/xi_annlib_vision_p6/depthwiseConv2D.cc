@@ -75,10 +75,10 @@ static bool SetupDepthwise2(conv_params_t *params, conv_mem_info_t *mem_info)
 static bool
 ConvReorderCoefficients2(const uint8_t *coeff_ref, const int32_t* bias_ref, uint8_t *coeff, int32_t* bias, const conv_params_t *params)
 {
-	uint32_t depthMultiplier = params->output.D / params->input.D;
-	uint32_t height = params->kernelH;
-	uint32_t width = params->kernelW;
-	uint32_t inDepth = params->input.D;
+	int32_t depthMultiplier = params->output.D / params->input.D;
+	int32_t height = params->kernelH;
+	int32_t width = params->kernelW;
+	int32_t inDepth = params->input.D;
 	/* Both Coeff and Coeff_ref share the same pitch */
 	int32_t pitchW = params->output.D;
 	int32_t pitchH = params->output.D * params->kernelW;

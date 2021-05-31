@@ -354,8 +354,8 @@ transfer_input_tile(uint8_t *inputPtr, xi_pTile3D inp, const conv_params_t *para
 
     int validX = max(0, boundX);
     int validY = max(0, boundY);
-    int validW = min(boundW, params->input.W) - validX;
-    int validH = min(boundH, params->input.H) - validY;
+    int validW = min(boundW, (int)params->input.W) - validX;
+    int validH = min(boundH, (int)params->input.H) - validY;
 
 
     //printf("valuid X Y %d %d and Valid W H %d %d \n", validX,validY,validW,validH);
@@ -428,8 +428,8 @@ transfer_input_tile(uint8_t *inputPtr, xi_pTile3D inp, const conv_params_t *para
 
     int validX = max(0, boundX);
     int validY = max(0, boundY);
-    int validW = min(boundW, params->input.W) - validX;
-    int validH = min(boundH, params->input.H) - validY;
+    int validW = min(boundW, (int)params->input.W) - validX;
+    int validH = min(boundH, (int)params->input.H) - validY;
 
 
     int pad_left   = validX - boundX;
@@ -470,7 +470,7 @@ transfer_output_tile(uint8_t *outputPtr, xi_pTile3D outp, const conv_params_t *p
     int H = XI_TILE3D_GET_DIM3(outp);
 
     //printf("m here output %d %d %d \n", XI_TILE3D_GET_DIM3_COORD(outp),XI_TILE3D_GET_DIM2_COORD(outp),XI_TILE3D_GET_DIM1_COORD(outp));
-    int validoutDepth = min(D, min(XI_TILE3D_GET_DIM1_COORD(outp) + params->tile.D, params->output.D) - XI_TILE3D_GET_DIM1_COORD(outp));
+    int validoutDepth = min(D, min(XI_TILE3D_GET_DIM1_COORD(outp) + (int)params->tile.D, (int)params->output.D) - XI_TILE3D_GET_DIM1_COORD(outp));
 
     int remainigZeros = validoutDepth - ((validoutDepth >> 4) << 4);
 
@@ -1117,7 +1117,7 @@ XI_ERR_TYPE flk_conv(const uint8_t *raw_params,
   unsigned int batchSize = params->batch;
 
   /* Enforce coefficent reload variant if we can't split input tensor over all cores along D */
-  if (!CONV_FLAG_GET_RELOAD_INPUT(params->flags) || !doubleBuffInput || (mem_info.numTilesD < (getTotalCores() * 2)))
+  if (!CONV_FLAG_GET_RELOAD_INPUT(params->flags) || !doubleBuffInput || ((int)mem_info.numTilesD < (getTotalCores() * 2)))
   {
     /* Prefer to reload coefficients to reduce overall bandwidth */
 
