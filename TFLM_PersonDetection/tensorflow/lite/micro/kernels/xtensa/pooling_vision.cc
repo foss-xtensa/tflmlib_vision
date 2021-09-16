@@ -12,6 +12,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
+#if defined(VISIONP6)
+
 #include "tensorflow/lite/kernels/internal/reference/pooling.h"
 
 #include "tensorflow/lite/c/builtin_op_data.h"
@@ -92,3 +94,5 @@ namespace tflite {
   }
 
 }  // namespace tflite
+
+#endif //VISIONP6
