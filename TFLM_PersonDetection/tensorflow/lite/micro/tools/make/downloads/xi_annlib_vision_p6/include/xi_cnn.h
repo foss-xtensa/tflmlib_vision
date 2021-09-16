@@ -22,7 +22,6 @@
 #define __XI_CNN_H__
 #if defined(__XTENSA__) || defined(__GNUC__)
 #else
-#define ALIGN(x)  _declspec(align(x))
 #define ALIGN16  _declspec(align(16))
 #define ALIGN32  _declspec(align(32))
 #define ALIGN64  _declspec(align(64))
@@ -41,10 +40,6 @@
 /****************************************************************************/
 /****************************************************************************/
 
-/* Macro for aligning to any value */
-#ifndef ALIGN
-#define ALIGN(val, align)  XI_ALIGN_VAL(val, align)
-#endif
 /****************************************************************************/
 /* Macro for initializing 48bit the accumulator with bias values            */
 /****************************************************************************/

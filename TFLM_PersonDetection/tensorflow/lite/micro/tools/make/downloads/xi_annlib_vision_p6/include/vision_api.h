@@ -67,10 +67,11 @@ uint32_t xiDepthwiseConv(uint8_t *pContext, uint32_t contextSize,
 
 // pooling apis
 uint32_t xiAverageEvalQuantized(uint8_t *pContext, uint32_t contextSize,
-      int8_t *pInput, uint32_t inputSize, int8_t *pOutput, uint32_t outputSize,
-      uint32_t inputN, uint32_t inputH, uint32_t inputW, uint32_t inputD,
-      uint32_t outputN, uint32_t outputH, uint32_t outputW, uint32_t outputD,
-      uint32_t filterWidth, uint32_t filterHeight, uint32_t strideWidth,
-      uint32_t act_min, uint32_t act_max);
+      int8_t *pInput, uint32_t inputSize, int8_t *pOutput, uint32_t outputSize);
 uint32_t xiPoolGetMemReqd_Context(uint32_t *pContextSize);
+
+uint32_t xiAveragePoolSetContext(uint8_t* pContext, uint32_t contextSize, const uint32_t inputD, const uint32_t inputW, const uint32_t inputH, const uint32_t inputN,
+  const uint32_t outputD, const uint32_t outputW, const uint32_t outputH, const uint32_t outputN, const uint32_t filterW, const uint32_t filterH,
+  const uint32_t strideWidth, const uint32_t pad_height, const uint32_t pad_width, const uint32_t act_min, const uint32_t act_max);
+
 #endif // _VISION_API_H_INCLUDED_

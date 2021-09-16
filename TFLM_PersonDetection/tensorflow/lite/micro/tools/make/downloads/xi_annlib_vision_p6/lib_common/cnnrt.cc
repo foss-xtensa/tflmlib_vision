@@ -1,23 +1,14 @@
-/*******************************************************************************
-* Copyright (c) 2019 Cadence Design Systems, Inc.
-*
-* Permission is hereby granted, free of charge, to any person obtaining
-* a copy of this software and associated documentation files (the
-* "Software"), to use this Software with Cadence processor cores only and
-* not with any other processors and platforms, subject to
-* the following conditions:
-*
-* The above copyright notice and this permission notice shall be included
-* in all copies or substantial portions of the Software.
-*
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-******************************************************************************/
+/* ------------------------------------------------------------------------ */
+/* Copyright (c) 2016 by Cadence Design Systems, Inc. ALL RIGHTS RESERVED.  */
+/* These coded instructions, statements, and computer programs ("Cadence    */
+/* Libraries") are the copyrighted works of Cadence Design Systems Inc.     */
+/* Cadence IP is licensed for use with Cadence processor cores only and     */
+/* must not be used for any other processors and platforms. Your use of the */
+/* Cadence Libraries is subject to the terms of the license agreement you   */
+/* have entered into with Cadence Design Systems, or a sublicense granted   */
+/* to you by a direct Cadence licensee.                                     */
+/* ------------------------------------------------------------------------ */
+
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,9 +20,14 @@
 #define IDMA_USE_INTR 0
 
 // Since idma-xtos library is used, IDMA_APP_USE_XTOS must be defined prior including idma.h
+#if !_MSC_VER
 #  define IDMA_APP_USE_XTOS
 #  include <xtensa/idma.h>
-
+#else
+#ifndef XCHAL_IDMA_NUM_CHANNELS
+# define XCHAL_IDMA_NUM_CHANNELS        1
+#endif
+#endif
 #include "cnnrt.h"
 
 /* iDMA initialization variables scope. Static by default. */
@@ -43,9 +39,10 @@
 #  if XCHAL_VISION_TYPE >= 7
 #    define IDMA_USE_64B_DESC 1
 #  endif
-#endif
 
-#if IDMA_USE_64B_DESC
+#endif  // CSTIB_BUILD
+
+#if IDMA_USE_64B_DESC 
 #define IDMA_USE_3D_DESC 1
 #else
 #define IDMA_USE_3D_DESC 0
@@ -126,7 +123,7 @@ static idma_status_t idma_add_2d_desc(idma_buffer_t *buff, void *dst, void *src,
 //TODO: Need to check for 64B flag in Q7
 #if (IDMA_USE_3D_DESC == 1)
 static idma_status_t idma_add_2d_desc64(idma_buffer_t *buff, void *dst, void *src, size_t d1_cnt, int dummy, size_t d2_cnt, int src_pitch, int dst_pitch);
-static idma_status_t idma_add_3d_desc64(idma_buffer_t *buff, void *dst, void *src, int dummy/*optional*/, size_t d1_cnt, int d2_cnt, int d3_cnt, int src_row_pitch, int dst_row_pitch, int src_tile_pitch, int dst_tile_pitch);
+static idma_status_t idma_add_3d_desc64(idma_buffer_t *buff, void *dst, void *src, int dummy/*optional*/, size_t d1_cnt, int d2_cnt, int d3_cnt, int src_row_pitch, int dst_row_pitch, int src_tile_pitch, int dst_tile_pitch); 
 #endif
 
 static void do_memcpy(int ch, int number);
@@ -144,14 +141,26 @@ static idma_status_t cnnrt_idma_buffer_status(int ch);
  * Global variables.
  */
 
-/* Pointer at DMA descriptors queue alocated from arena. */
-static  idma_buffer_t *_idmaObjBuff[XCHAL_IDMA_NUM_CHANNELS] _LOCAL_RAM_;
-/* Number of DMA descriptors allocated */
-static unsigned _idmaDescrTotal[XCHAL_IDMA_NUM_CHANNELS] _LOCAL_RAM_;
-/* Descriptors counter to avoid overflows of idmaObjBuff */
-static unsigned _idmaDescrCount[XCHAL_IDMA_NUM_CHANNELS] _LOCAL_RAM_;
-/* Boolean indicator if iDMA is in error state */
-static uint32_t _idmaStatus[XCHAL_IDMA_NUM_CHANNELS] _LOCAL_RAM_;
+typedef struct {
+    /* Pointer at DMA descriptors queue alocated from arena. */
+    idma_buffer_t *_idmaObjBuff[XCHAL_IDMA_NUM_CHANNELS];
+    /* Number of DMA descriptors allocated */
+    unsigned _idmaDescrTotal[XCHAL_IDMA_NUM_CHANNELS];
+    /* Descriptors counter to avoid overflows of idmaObjBuff */
+    unsigned _idmaDescrCount[XCHAL_IDMA_NUM_CHANNELS];
+    /* Boolean indicator if iDMA is in error state */
+    uint32_t _idmaStatus[XCHAL_IDMA_NUM_CHANNELS];
+} cnnrt_tls;
+
+#ifdef XOS_BUILD
+uint32_t cnnrt_tls_key;
+cnnrt_tls *cnnrt_tls_get(void) {
+    return (cnnrt_tls *)xos_tls_get(cnnrt_tls_key);
+}
+#else
+cnnrt_tls cnnrtLocalStorage _LOCAL_RAM_;
+#define cnnrt_tls_get() (&cnnrtLocalStorage)
+#endif
 
 #ifdef XCHAL_IDMA_MAX_OUTSTANDING_REQ
 #  define _IDMA_MAX_OUTSTANDING_REQ XCHAL_IDMA_MAX_OUTSTANDING_REQ
@@ -166,8 +175,8 @@ DMA_DEFS_API idma_ticks_cyc_t        _idmaTicksPerCyc = TICK_CYCLES_2;
 DMA_DEFS_API int32_t                 _idmaTimeoutTicks= 0;
 DMA_DEFS_API int32_t                 _idmaMaxPIF      = _IDMA_MAX_OUTSTANDING_REQ;
 DMA_DEFS_API idma_err_callback_fn    _idmaCBError     = NULL;
-#if IDMA_USE_INTR
-DMA_DEFS_API void *                  _idmaCBData      = NULL;
+#if defined(XOS_BUILD) || (defined(IDMA_USE_INTR) && (IDMA_USE_INTR == 1))
+static void *                        _idmaCBData      = NULL;
 DMA_DEFS_API idma_callback_fn        _idmaCBFunc      = NULL;
 #else
 #  ifdef __XCC__
@@ -206,23 +215,26 @@ static idma_callback_fn _idmaCBFunc      = NULL;
    to make sure free slot is available in the queue.
 
    to_schedule is the number of added but not scheduled descriptors.
-
+   
    Returns number of scheduled DMA transfers.
 
 */
-INLINE int inc_desc_counter (int ch,
+INLINE int inc_desc_counter (int ch, 
                              unsigned to_schedule)
 {
     int result = 0;
-    if (_idmaDescrCount[ch] >= _idmaDescrTotal[ch]) {
+
+    cnnrt_tls *lptr = cnnrt_tls_get();
+
+    if (lptr->_idmaDescrCount[ch] >= lptr->_idmaDescrTotal[ch]) {
         /* Descriptors queue is full */
         HINT_NEVER;
         /* Record that queue overflowed if compiled with stat instrumentation */
         STATS_QUEUE_OVERFLOWED();
 
-        if (to_schedule >= _idmaDescrTotal[ch]) {
+        if (to_schedule >= lptr->_idmaDescrTotal[ch]) {
             HINT_NEVER;
-            if (_idmaStatus[ch]) {
+            if (lptr->_idmaStatus[ch]) {
                 /* Already in error state */
                 HINT_NEVER;
                 return 0;
@@ -230,7 +242,7 @@ INLINE int inc_desc_counter (int ch,
             /* Schedule added descriptors */
             if (to_schedule > 0 && cnnrt_idma_schedule_desc(ch, to_schedule) < 0) {
                 HINT_NEVER;
-                _idmaStatus[ch] |= cnnrt_idma_buffer_status(ch);
+                lptr->_idmaStatus[ch] |= cnnrt_idma_buffer_status(ch);
                 return 0;
             }
             /* Return number of scheduled descriptors */
@@ -244,42 +256,64 @@ INLINE int inc_desc_counter (int ch,
         /* Barrier resets number of descriptors based on assumption
            that all added descriptors are scheduled. Restoring
            number of added descriptors here. */
-        _idmaDescrCount[ch] = to_schedule;
+        lptr->_idmaDescrCount[ch] = to_schedule;
     }
-    _idmaDescrCount[ch]++;
+    lptr->_idmaDescrCount[ch]++;
     /* Record max queue size */
-    STATS_QUEUE_SIZE(_idmaDescrCount[ch]);
+    STATS_QUEUE_SIZE(lptr->_idmaDescrCount[ch]);
     return result;
 }
 
-XI_ERR_TYPE dma_init(unsigned queue_size)
+XI_ERR_TYPE cnnrt_dma_init(void)
+{
+    XI_ERROR_CHECKS() {}
+
+    for (int i=0; i<XCHAL_IDMA_NUM_CHANNELS; i++) {
+#ifdef __XCC__
+        uint32_t Status = cnnrt_idma_init(i, _idmaInitFlags, MAX_BLOCK_16, _idmaMaxPIF, _idmaTicksPerCyc, _idmaTimeoutTicks, _idmaCBError);
+        (void) Status;
+        XI_RUN_TIME_CHECK(Status == IDMA_OK, "Failed to initialize iDMA library", XI_ERR_BADARG);
+#else // __XCC__
+        dma_desc_free[i] = 0;
+        dma_desc_last[i] = 0;
+#endif
+    }
+
+    return XI_ERROR_STATUS();
+}
+
+XI_ERR_TYPE cnnrt_dma_init_loops(const unsigned queue_size)
 {
     XI_ERROR_CHECKS() {
         XI_RUN_TIME_CHECK(queue_size >= 8 && (queue_size & (queue_size - 1)) == 0,
                           "Invalid queue size", XI_ERR_BADARG);
     }
 
+#ifdef XOS_BUILD
+    cnnrt_tls *lptr;
+    // Allocate space for thread mutable variables and store it in TLS
+    arena_static_alloc((void **)&lptr, sizeof(cnnrt_tls), sizeof(unsigned long long));
+    xos_tls_set(cnnrt_tls_key, (void*)lptr);
+#else
+    cnnrt_tls *lptr = cnnrt_tls_get();
+#endif
+
     for (int i=0; i<XCHAL_IDMA_NUM_CHANNELS; i++) {
 #if (IDMA_USE_3D_DESC == 1)
-        XI_CHECK_RESULT(arena_static_alloc((void**)&(_idmaObjBuff[i]), IDMA_BUFFER_SIZE(queue_size, IDMA_64B_DESC), 64));
+        XI_CHECK_RESULT(arena_static_alloc((void**)&(lptr->_idmaObjBuff[i]), IDMA_BUFFER_SIZE(queue_size, IDMA_64B_DESC), 64));
 #else
-        XI_CHECK_RESULT(arena_static_alloc((void**)&(_idmaObjBuff[i]), IDMA_BUFFER_SIZE(queue_size, IDMA_2D_DESC), 64));
+        XI_CHECK_RESULT(arena_static_alloc((void**)&(lptr->_idmaObjBuff[i]), IDMA_BUFFER_SIZE(queue_size, IDMA_2D_DESC), 64));
 #endif
 #ifdef __XCC__
-        _idmaStatus[i] = cnnrt_idma_init(i, _idmaInitFlags, MAX_BLOCK_16, _idmaMaxPIF, _idmaTicksPerCyc, _idmaTimeoutTicks, _idmaCBError);
-        XI_RUN_TIME_CHECK(_idmaStatus[i] == IDMA_OK, "Failed to initialize iDMA library", XI_ERR_BADARG);
 #if (IDMA_USE_3D_DESC == 1)
-        _idmaStatus[i] = cnnrt_idma_init_loop(i, _idmaObjBuff[i], IDMA_64B_DESC, queue_size, _idmaCBData, _idmaCBFunc);
+        lptr->_idmaStatus[i] = cnnrt_idma_init_loop(i, lptr->_idmaObjBuff[i], IDMA_64B_DESC, queue_size, _idmaCBData, _idmaCBFunc);
 #else
-        _idmaStatus[i] = cnnrt_idma_init_loop(i, _idmaObjBuff[i], IDMA_2D_DESC, queue_size, _idmaCBData, _idmaCBFunc);
+        lptr->_idmaStatus[i] = cnnrt_idma_init_loop(i, lptr->_idmaObjBuff[i], IDMA_2D_DESC, queue_size, _idmaCBData, _idmaCBFunc);
 #endif
-        XI_RUN_TIME_CHECK(_idmaStatus[i] == IDMA_OK, "Failed to initialize iDMA buffer", XI_ERR_BADARG);
-#else // __XCC__
-        dma_desc_free[i] = 0;
-        dma_desc_last[i] = 0;
+        XI_RUN_TIME_CHECK(lptr->_idmaStatus[i] == IDMA_OK, "Failed to initialize iDMA buffer", XI_ERR_BADARG);
 #endif
-        _idmaDescrCount[i] = 0;
-        _idmaDescrTotal[i] = queue_size;
+        lptr->_idmaDescrCount[i] = 0;
+        lptr->_idmaDescrTotal[i] = queue_size;
     }
 
     return XI_ERROR_STATUS();
@@ -291,13 +325,27 @@ XI_ERR_TYPE dma_barrier_ch(int ch)
 
     XI_RUN_TIME_CHECK(ch >=0 && ch < XCHAL_IDMA_NUM_CHANNELS, "Invalid iDMA channel index", XI_ERR_BADARG);
 
-    /* Reset descriptors counter */
-    _idmaDescrCount[ch] = 0;
+    cnnrt_tls *lptr = cnnrt_tls_get();
 
-    XI_RUN_TIME_CHECK(_idmaStatus[ch] == XI_ERR_OK, "iDMA engine is in error state", XI_ERR_BADARG);
+    /* Reset descriptors counter */
+    lptr->_idmaDescrCount[ch] = 0;
+
+    XI_RUN_TIME_CHECK(lptr->_idmaStatus[ch] == XI_ERR_OK, "iDMA engine is in error state", XI_ERR_BADARG);
 
 #ifdef __XCC__
 
+#ifdef  XOS_BUILD
+    uint32_t status;
+
+    while ((status = idma_buffer_status_i(ch)) > 0) {
+      STATS_WAIT(idma_sleep_i(ch););
+    }
+    if (status == IDMA_CANT_SLEEP)
+        status = XI_ERR_OK;
+    lptr->_idmaStatus[ch] |= status;
+    XI_RUN_TIME_CHECK(lptr->_idmaStatus[ch] == XI_ERR_OK, "iDMA engine is in error state", XI_ERR_BADARG);
+
+#else // XOS_BUILD
 #  if XCHAL_IDMA_NUM_CHANNELS > 1
     if (IDMA_HW_NUM_OUTSTANDING( ch ) > 0) {
         HINT_NEVER;
@@ -319,9 +367,10 @@ XI_ERR_TYPE dma_barrier_ch(int ch)
     if ((XT_RER(idmareg_base + IDMA_REG_STATUS) & IDMA_STATE_MASK) == IDMA_STATE_ERROR) {
 #  endif
         HINT_NEVER;
-        _idmaStatus[ch] |= cnnrt_idma_buffer_status(ch);
-        XI_RUN_TIME_CHECK(_idmaStatus[ch] == XI_ERR_OK, "iDMA engine is in error state", XI_ERR_BADARG);
+        lptr->_idmaStatus[ch] |= cnnrt_idma_buffer_status(ch);
+        XI_RUN_TIME_CHECK(lptr->_idmaStatus[ch] == XI_ERR_OK, "iDMA engine is in error state", XI_ERR_BADARG);
     }
+#endif // XOS_BUILD
 
 #else
     /* CSTUBs */
@@ -365,7 +414,9 @@ INLINE idma_status_t add_single_2d_desc(int ch,
     *scheduled += inc_desc_counter (ch, *added - *scheduled);
     *added += 1;
 
-    return idma_add_2d_desc(_idmaObjBuff[ch], dst, src, d1_cnt, DESC_IDMA_PRIOR_H,
+    cnnrt_tls *lptr = cnnrt_tls_get();
+
+    return idma_add_2d_desc(lptr->_idmaObjBuff[ch], dst, src, d1_cnt, DESC_IDMA_PRIOR_H,
                             d2_cnt, d2_src_pitch, d2_dst_pitch);
 }
 
@@ -378,7 +429,9 @@ INLINE idma_status_t add_single_2d_desc64(int ch,
     *scheduled += inc_desc_counter (ch, *added - *scheduled);
     *added += 1;
 
-    return idma_add_2d_desc64(_idmaObjBuff[ch], &dst, &src, d1_cnt, DESC_IDMA_PRIOR_H,
+    cnnrt_tls *lptr = cnnrt_tls_get();
+
+    return idma_add_2d_desc64(lptr->_idmaObjBuff[ch], &dst, &src, d1_cnt, DESC_IDMA_PRIOR_H,
                                                    d2_cnt, d2_src_pitch, d2_dst_pitch);
 }
 
@@ -391,16 +444,19 @@ INLINE idma_status_t add_single_3d_desc64(int ch,
 
     *scheduled += inc_desc_counter (ch, *added - *scheduled);
     *added += 1;
-    idma_status_t idma_status =  idma_add_3d_desc64(_idmaObjBuff[ch], &dst, &src, DESC_IDMA_PRIOR_H, d1_cnt,
+
+    cnnrt_tls *lptr = cnnrt_tls_get();
+
+    idma_status_t idma_status =  idma_add_3d_desc64(lptr->_idmaObjBuff[ch], &dst, &src, DESC_IDMA_PRIOR_H, d1_cnt,
                                   d2_cnt, d3_cnt, d2_src_pitch, d2_dst_pitch, d3_src_pitch, d3_dst_pitch);
 
 #if (XTENSA_SWVERSION <= XTENSA_SWVERSION_RI_2019_2)
     //TODO: Remove af bug fix in idma library
     IDMA_DISABLE_INTS();
-    idma_buf_t* buf = (uint8_t *)&_idmaObjBuff[ch][0];
+    idma_buf_t* buf = (uint8_t *)&(lptr->_idmaObjBuff[ch][0]);
     update_next_add_ptr(buf);
     IDMA_ENABLE_INTS();
-#endif
+#endif 
 
     return idma_status;
 }
@@ -450,7 +506,7 @@ INLINE int add_2d_desc_proxy(int ch,
 #if (IDMA_USE_3D_DESC == 1)
             idma_status |= add_single_2d_desc64(ch, src, dst, d1_cnt, d2_src_pitch, d2_dst_pitch, rows, &added, &scheduled);
 #else
-            idma_status = idma_status_t(idma_status | add_single_2d_desc(ch, src, dst, d1_cnt, d2_src_pitch, d2_dst_pitch, rows, &added, &scheduled));
+            idma_status = (idma_status_t)((int)idma_status | (int) add_single_2d_desc(ch, src, dst, d1_cnt, d2_src_pitch, d2_dst_pitch, rows, &added, &scheduled));
 #endif
             src = (uint8_t*)src + rows * d2_src_pitch;
             dst = (uint8_t*)dst + rows * d2_dst_pitch;
@@ -462,8 +518,8 @@ INLINE int add_2d_desc_proxy(int ch,
             idma_status |= add_single_2d_desc64 (ch, src, dst, rem, d2_src_pitch, d2_dst_pitch, 1, &added, &scheduled);
             idma_status |= add_single_2d_desc64 (ch, src+rem, dst+rem, d1_cnt-rem, d2_src_pitch, d2_dst_pitch, 1, &added, &scheduled);
 #else
-            idma_status = idma_status_t(idma_status | add_single_2d_desc (ch, src, dst, rem, d2_src_pitch, d2_dst_pitch, 1, &added, &scheduled));
-            idma_status = idma_status_t(idma_status | add_single_2d_desc (ch, (uint8_t*)src+rem, (uint8_t*)dst+rem, d1_cnt-rem, d2_src_pitch, d2_dst_pitch, 1, &added, &scheduled));
+            idma_status =(idma_status_t)((int)idma_status | (int) add_single_2d_desc (ch, src, dst, rem, d2_src_pitch, d2_dst_pitch, 1, &added, &scheduled));
+            idma_status = (idma_status_t)((int)idma_status | (int)add_single_2d_desc (ch, (char*)src+rem, (char*)dst+rem, d1_cnt-rem, d2_src_pitch, d2_dst_pitch, 1, &added, &scheduled));
 #endif
             src = (uint8_t*)src + d2_src_pitch;
             dst = (uint8_t*)dst + d2_dst_pitch;
@@ -474,10 +530,13 @@ INLINE int add_2d_desc_proxy(int ch,
         /* Fall through to perform last transform */
     }
 #endif
+
+    cnnrt_tls *lptr = cnnrt_tls_get();
+
 #if (IDMA_USE_3D_DESC == 1)
-    _idmaStatus[ch] |= idma_status | add_single_2d_desc64(ch, src, dst, d1_cnt, d2_src_pitch, d2_dst_pitch, d2_cnt, &added, &scheduled);
+    lptr->_idmaStatus[ch] |= idma_status | add_single_2d_desc64(ch, src, dst, d1_cnt, d2_src_pitch, d2_dst_pitch, d2_cnt, &added, &scheduled);
 #else
-    _idmaStatus[ch] |= idma_status | add_single_2d_desc(ch, src, dst, d1_cnt, d2_src_pitch, d2_dst_pitch, d2_cnt, &added, &scheduled);
+    lptr->_idmaStatus[ch] |= idma_status | add_single_2d_desc(ch, src, dst, d1_cnt, d2_src_pitch, d2_dst_pitch, d2_cnt, &added, &scheduled);
 #endif
     return added - scheduled;
 }
@@ -504,7 +563,7 @@ INLINE int add_2d_desc(int ch, void *src, void *dst, size_t d1_cnt,
 #if (IDMA_USE_3D_DESC==1)
 INLINE int add_3d_desc64(int ch, void *src, void *dst, size_t d1_cnt,
                          int d2_src_pitch, int d2_dst_pitch, size_t d2_cnt,
-                         int d3_src_pitch, int d3_dst_pitch, size_t d3_cnt,
+                         int d3_src_pitch, int d3_dst_pitch, size_t d3_cnt, 
                          unsigned added, unsigned isSys2Loc, unsigned straddles)
 {
     idma_status_t idma_status = IDMA_OK;
@@ -524,6 +583,7 @@ INLINE int add_3d_desc64(int ch, void *src, void *dst, size_t d1_cnt,
 #  endif
 
     boundary = (uint8_t*)((XCHAL_DATARAM0_PADDR < XCHAL_DATARAM1_PADDR) ? XCHAL_DATARAM1_PADDR : XCHAL_DATARAM0_PADDR);
+
     /* Look at local memory side */
     if (isSys2Loc) {
         d2_pitch = d2_dst_pitch;
@@ -540,7 +600,7 @@ INLINE int add_3d_desc64(int ch, void *src, void *dst, size_t d1_cnt,
         HINT_NEVER;
         //size_t rows  = (boundary - first) / d2_pitch;
         size_t tiles    = (boundary - first) / d3_pitch;
-        size_t rows_rem = ((boundary - first) - tiles * d3_pitch) / d2_pitch;
+        size_t rows_rem = ((boundary - first) - tiles * d3_pitch) / d2_pitch;  
         size_t rem      = (boundary - first) - rows_rem * d2_pitch - tiles * d3_pitch;
         /* Add one more row if DRAM boundary goes between rows */
         tiles += rows_rem >= d2_cnt;
@@ -563,7 +623,7 @@ INLINE int add_3d_desc64(int ch, void *src, void *dst, size_t d1_cnt,
                 idma_status |= add_single_3d_desc64(ch, src + rem, dst + rem, d1_cnt - rem, d2_src_pitch, d2_dst_pitch, 1, d3_src_pitch, d3_dst_pitch, 1, &added, &scheduled);
                 src = (uint8_t*)src + d2_src_pitch;
                 dst = (uint8_t*)dst + d2_dst_pitch;
-                d2_cnt --;
+                d2_cnt --; 
             }
             if (d2_cnt == 0)
                 return added - scheduled;
@@ -571,6 +631,12 @@ INLINE int add_3d_desc64(int ch, void *src, void *dst, size_t d1_cnt,
             idma_status |= add_single_3d_desc64(ch, src, dst, d1_cnt, d2_src_pitch, d2_dst_pitch, d2_cnt - rows_rem, d3_src_pitch, d3_dst_pitch, 1, &added, &scheduled);
 			src = (uint8_t*)src - (rows_rem * d2_src_pitch) + d3_src_pitch;
             dst = (uint8_t*)dst - (rows_rem * d2_dst_pitch) + d3_dst_pitch;
+			//move pointer back to original place . one Width height plane is completely done 
+            if (rem != 0 && rem < d1_cnt) {
+                src = (uint8_t*)src - d2_src_pitch ;
+                dst = (uint8_t*)dst - d2_dst_pitch ;
+                d2_cnt++;			
+           }			
             d3_cnt --;
         }
 
@@ -579,7 +645,9 @@ INLINE int add_3d_desc64(int ch, void *src, void *dst, size_t d1_cnt,
         /* Fall through to perform last transform */
     }
 #endif
-    _idmaStatus[ch] |= idma_status | add_single_3d_desc64(ch, src, dst, d1_cnt, d2_src_pitch, d2_dst_pitch, d2_cnt, d3_src_pitch, d3_dst_pitch, d3_cnt, &added, &scheduled);
+    cnnrt_tls *lptr = cnnrt_tls_get();
+
+    lptr->_idmaStatus[ch] |= idma_status | add_single_3d_desc64(ch, src, dst, d1_cnt, d2_src_pitch, d2_dst_pitch, d2_cnt, d3_src_pitch, d3_dst_pitch, d3_cnt, &added, &scheduled);
     return added - scheduled;
 }
 #endif
@@ -587,9 +655,11 @@ INLINE int add_3d_desc64(int ch, void *src, void *dst, size_t d1_cnt,
 INLINE void schedule_descriptors(int ch,
                                  unsigned added)
 {
-    if (!_idmaStatus[ch] && cnnrt_idma_schedule_desc (ch, added) < 0) {
+    cnnrt_tls *lptr = cnnrt_tls_get();
+
+    if (!lptr->_idmaStatus[ch] && cnnrt_idma_schedule_desc (ch, added) < 0) {
         HINT_NEVER;
-        _idmaStatus[ch] |= cnnrt_idma_buffer_status( ch );
+        lptr->_idmaStatus[ch] |= cnnrt_idma_buffer_status( ch );
     }
 }
 
@@ -641,7 +711,7 @@ void dma_2d_loc2sys_dyn_ch(int ch,
                            void *src, void *dst, size_t d1_cnt, int d2_src_pitch, int d2_dst_pitch, size_t d2_cnt)
 {
     unsigned added;
-    if ((int)d1_cnt == d2_src_pitch && (int)d1_cnt == d2_dst_pitch) {
+    if (d1_cnt == d2_src_pitch && d1_cnt == d2_dst_pitch) {
         added = add_2d_desc(ch,
                             src, dst, d1_cnt * d2_cnt, d1_cnt * d2_cnt, d1_cnt * d2_cnt, 1,
                             /*added*/ 0, /*isSys2Loc*/ 0, /*straddles*/ 0);
@@ -659,7 +729,7 @@ void dma_2d_sys2loc_dyn_ch(int ch,
                            void *src, void *dst, size_t d1_cnt, int d2_src_pitch, int d2_dst_pitch, size_t d2_cnt)
 {
     unsigned added;
-    if ((int)d1_cnt == d2_src_pitch && (int)d1_cnt == d2_dst_pitch) {
+    if (d1_cnt == d2_src_pitch && d1_cnt == d2_dst_pitch) {
         added = add_2d_desc(ch,
                             src, dst, d1_cnt * d2_cnt, d1_cnt * d2_cnt, d1_cnt * d2_cnt, 1,
                             /*added*/ 0, /*isSys2Loc*/ 1, /*straddles*/ 0);
@@ -679,9 +749,9 @@ void dma_3d_loc2sys_ch(int ch,
                        int d3_src_pitch, int d3_dst_pitch, size_t d3_cnt)
 {
     unsigned added = 0;
-#if (IDMA_USE_3D_DESC==1)
-    added = add_3d_desc64(ch,
-                          (uint8_t*)src,
+#if (IDMA_USE_3D_DESC==1)    
+    added = add_3d_desc64(ch, 
+                          (uint8_t*)src, 
                           (uint8_t*)dst,
                           d1_cnt,
                           d2_src_pitch,
@@ -715,9 +785,9 @@ void dma_3d_sys2loc_ch(int ch,
                        int d3_src_pitch, int d3_dst_pitch, size_t d3_cnt)
 {
     unsigned added = 0;
-#if (IDMA_USE_3D_DESC==1)
+#if (IDMA_USE_3D_DESC==1)    
     added = add_3d_desc64(ch,
-                          (uint8_t*)src,
+                          (uint8_t*)src, 
                           (uint8_t*)dst,
                           d1_cnt,
                           d2_src_pitch,
@@ -751,12 +821,12 @@ void dma_3d_loc2sys_dyn_ch(int ch,
                            int d3_src_pitch, int d3_dst_pitch, size_t d3_cnt)
 {
     /* Fold dimensions if possible */
-    if ((int)d1_cnt == d2_src_pitch
-        && (int)d1_cnt == d2_dst_pitch) {
+    if (d1_cnt == d2_src_pitch
+        && d1_cnt == d2_dst_pitch) {
         dma_2d_loc2sys_dyn_ch(ch,
                               src, dst, d1_cnt * d2_cnt, d3_src_pitch, d3_dst_pitch, d3_cnt);
-    } else if ((int)d2_cnt * d2_src_pitch == d3_src_pitch
-               && (int)d2_cnt * d2_dst_pitch == d3_dst_pitch) {
+    } else if (d2_cnt * d2_src_pitch == d3_src_pitch
+               && d2_cnt * d2_dst_pitch == d3_dst_pitch) {
         dma_2d_loc2sys_dyn_ch(ch,
                               src, dst, d1_cnt, d2_src_pitch, d2_dst_pitch, d2_cnt * d3_cnt);
     } else {
@@ -773,12 +843,12 @@ void dma_3d_sys2loc_dyn_ch(int ch,
                            int d3_src_pitch, int d3_dst_pitch, size_t d3_cnt)
 {
     /* Fold dimensions if possible */
-    if ((int)d1_cnt == d2_src_pitch
-        && (int)d1_cnt == d2_dst_pitch) {
+    if (d1_cnt == d2_src_pitch
+        && d1_cnt == d2_dst_pitch) {
         dma_2d_sys2loc_dyn_ch(ch,
                               src, dst, d1_cnt * d2_cnt, d3_src_pitch, d3_dst_pitch, d3_cnt);
-    } else if ((int)d2_cnt * d2_src_pitch == d3_src_pitch
-               && (int)d2_cnt * d2_dst_pitch == d3_dst_pitch) {
+    } else if (d2_cnt * d2_src_pitch == d3_src_pitch
+               && d2_cnt * d2_dst_pitch == d3_dst_pitch) {
         dma_2d_sys2loc_dyn_ch(ch,
                               src, dst, d1_cnt, d2_src_pitch, d2_dst_pitch, d2_cnt * d3_cnt);
     } else {
@@ -797,9 +867,9 @@ void dma_4d_loc2sys_ch(int ch,
 {
     unsigned added = 0;
     for (unsigned j = 0; j < d4_cnt; ++j) {
-#if (IDMA_USE_3D_DESC==1)
+#if (IDMA_USE_3D_DESC==1)    
         added = add_3d_desc64(ch,
-                              (uint8_t*)src + j * d4_src_pitch,
+                              (uint8_t*)src + j * d4_src_pitch, 
                               (uint8_t*)dst + j * d4_dst_pitch,
                               d1_cnt,
                               d2_src_pitch,
@@ -836,9 +906,9 @@ void dma_4d_sys2loc_ch(int ch,
 {
     unsigned added = 0;
     for (unsigned j = 0; j < d4_cnt; ++j) {
-#if (IDMA_USE_3D_DESC==1)
+#if (IDMA_USE_3D_DESC==1)    
         added = add_3d_desc64(ch,
-                              (uint8_t*)src + j * d4_src_pitch,
+                              (uint8_t*)src + j * d4_src_pitch, 
                               (uint8_t*)dst + j * d4_dst_pitch,
                               d1_cnt,
                               d2_src_pitch,
@@ -867,26 +937,26 @@ void dma_4d_sys2loc_ch(int ch,
                          added);
 }
 
-void dma_4d_loc2sys_dyn_ch(int ch, void *src, void *dst, size_t d1_cnt,
+void dma_4d_loc2sys_dyn_ch(int ch, void *src, void *dst, size_t d1_cnt, 
                         int d2_src_pitch, int d2_dst_pitch, size_t d2_cnt,
                         int d3_src_pitch, int d3_dst_pitch, size_t d3_cnt,
                         int d4_src_pitch, int d4_dst_pitch, size_t d4_cnt)
 {
     for (unsigned j = 0; j < d4_cnt; ++j) {
-        dma_3d_loc2sys_dyn_ch(ch,
+        dma_3d_loc2sys_dyn_ch(ch,       
                            (uint8_t*)src + j*d4_src_pitch,
                            (uint8_t*)dst + j*d4_dst_pitch,
-                           d1_cnt,
-                           d2_src_pitch,
-                           d2_dst_pitch,
+                           d1_cnt,                         
+                           d2_src_pitch,                  
+                           d2_dst_pitch,                  
                            d2_cnt,
-                           d3_src_pitch,
-                           d3_dst_pitch,
-                           d3_cnt);
-    }
+                           d3_src_pitch,                   
+                           d3_dst_pitch,               
+                           d3_cnt);                    
+    }                     
 }
 
-void dma_4d_sys2loc_dyn_ch(int ch, void *src, void *dst, size_t d1_cnt,
+void dma_4d_sys2loc_dyn_ch(int ch, void *src, void *dst, size_t d1_cnt, 
                         int d2_src_pitch, int d2_dst_pitch, size_t d2_cnt,
                         int d3_src_pitch, int d3_dst_pitch, size_t d3_cnt,
                         int d4_src_pitch, int d4_dst_pitch, size_t d4_cnt)
@@ -894,16 +964,16 @@ void dma_4d_sys2loc_dyn_ch(int ch, void *src, void *dst, size_t d1_cnt,
     for (unsigned j = 0; j < d4_cnt; ++j) {
         dma_3d_sys2loc_dyn_ch(ch,
                            (uint8_t*)src + j*d4_src_pitch,
-                           (uint8_t*)dst + j*d4_dst_pitch,
+                           (uint8_t*)dst + j*d4_dst_pitch, 
                            d1_cnt,
-                           d2_src_pitch,
-                           d2_dst_pitch,
-                           d2_cnt,
+                           d2_src_pitch,                   
+                           d2_dst_pitch,                   
+                           d2_cnt,                         
                            d3_src_pitch,
-                           d3_dst_pitch,
-                           d3_cnt);
+                           d3_dst_pitch,                   
+                           d3_cnt);                        
     }
-}
+} 
 
 void dma_1d_loc2sys_straddles_ch(int ch,
                                  void *src, void *dst, size_t d1_cnt)
@@ -953,7 +1023,7 @@ void dma_2d_loc2sys_dyn_straddles_ch(int ch,
                                      void *src, void *dst, size_t d1_cnt, int d2_src_pitch, int d2_dst_pitch, size_t d2_cnt)
 {
     unsigned added;
-    if ((int)d1_cnt == d2_src_pitch && (int)d1_cnt == d2_dst_pitch) {
+    if (d1_cnt == d2_src_pitch && d1_cnt == d2_dst_pitch) {
         added = add_2d_desc(ch,
                             src, dst, d1_cnt * d2_cnt, d1_cnt * d2_cnt, d1_cnt * d2_cnt, 1,
                             /*added*/ 0, /*isSys2Loc*/ 0, /*straddles*/ 1);
@@ -971,7 +1041,7 @@ void dma_2d_sys2loc_dyn_straddles_ch(int ch,
                                      void *src, void *dst, size_t d1_cnt, int d2_src_pitch, int d2_dst_pitch, size_t d2_cnt)
 {
     unsigned added;
-    if ((int)d1_cnt == d2_src_pitch && (int)d1_cnt == d2_dst_pitch) {
+    if (d1_cnt == d2_src_pitch && d1_cnt == d2_dst_pitch) {
         added = add_2d_desc(ch,
                             src, dst, d1_cnt * d2_cnt, d1_cnt * d2_cnt, d1_cnt * d2_cnt, 1,
                             /*added*/ 0, /*isSys2Loc*/ 1, /*straddles*/ 1);
@@ -991,9 +1061,9 @@ void dma_3d_loc2sys_straddles_ch(int ch,
                                  int d3_src_pitch, int d3_dst_pitch, size_t d3_cnt)
 {
     unsigned added = 0;
-#if (IDMA_USE_3D_DESC==1)
-    added = add_3d_desc64(ch,
-                          (uint8_t*)src,
+#if (IDMA_USE_3D_DESC==1)    
+    added = add_3d_desc64(ch, 
+                          (uint8_t*)src, 
                           (uint8_t*)dst,
                           d1_cnt,
                           d2_src_pitch,
@@ -1027,9 +1097,9 @@ void dma_3d_sys2loc_straddles_ch(int ch,
                                  int d3_src_pitch, int d3_dst_pitch, size_t d3_cnt)
 {
     unsigned added = 0;
-#if (IDMA_USE_3D_DESC == 1)
+#if (IDMA_USE_3D_DESC == 1)    
     added = add_3d_desc64(ch,
-                          (uint8_t*)src,
+                          (uint8_t*)src, 
                           (uint8_t*)dst,
                           d1_cnt,
                           d2_src_pitch,
@@ -1063,12 +1133,12 @@ void dma_3d_loc2sys_dyn_straddles_ch(int ch,
                                      int d3_src_pitch, int d3_dst_pitch, size_t d3_cnt)
 {
     /* Fold dimensions if possible */
-    if ((int)d1_cnt == d2_src_pitch
-        && (int)d1_cnt == d2_dst_pitch) {
+    if (d1_cnt == d2_src_pitch
+        && d1_cnt == d2_dst_pitch) {
         dma_2d_loc2sys_dyn_straddles_ch(ch,
                                         src, dst, d1_cnt * d2_cnt, d3_src_pitch, d3_dst_pitch, d3_cnt);
-    } else if ((int)d2_cnt * d2_src_pitch == d3_src_pitch
-               && (int)d2_cnt * d2_dst_pitch == d3_dst_pitch) {
+    } else if (d2_cnt * d2_src_pitch == d3_src_pitch
+               && d2_cnt * d2_dst_pitch == d3_dst_pitch) {
         dma_2d_loc2sys_dyn_straddles_ch(ch,
                                         src, dst, d1_cnt, d2_src_pitch, d2_dst_pitch, d2_cnt * d3_cnt);
     } else {
@@ -1085,12 +1155,12 @@ void dma_3d_sys2loc_dyn_straddles_ch(int ch,
                                      int d3_src_pitch, int d3_dst_pitch, size_t d3_cnt)
 {
     /* Fold dimensions if possible */
-    if ((int)d1_cnt == d2_src_pitch
-        && (int)d1_cnt == d2_dst_pitch) {
+    if (d1_cnt == d2_src_pitch
+        && d1_cnt == d2_dst_pitch) {
         dma_2d_sys2loc_dyn_straddles_ch(ch,
                                         src, dst, d1_cnt * d2_cnt, d3_src_pitch, d3_dst_pitch, d3_cnt);
-    } else if ((int)d2_cnt * d2_src_pitch == d3_src_pitch
-               && (int)d2_cnt * d2_dst_pitch == d3_dst_pitch) {
+    } else if (d2_cnt * d2_src_pitch == d3_src_pitch
+               && d2_cnt * d2_dst_pitch == d3_dst_pitch) {
         dma_2d_sys2loc_dyn_straddles_ch(ch,
                                         src, dst, d1_cnt, d2_src_pitch, d2_dst_pitch, d2_cnt * d3_cnt);
     } else {
@@ -1109,9 +1179,9 @@ void dma_4d_loc2sys_straddles_ch(int ch,
 {
     unsigned added = 0;
     for (unsigned j = 0; j < d4_cnt; ++j) {
-#if (IDMA_USE_3D_DESC == 1)
+#if (IDMA_USE_3D_DESC == 1)    
         added = add_3d_desc64(ch,
-                              (uint8_t*)src + j * d4_src_pitch,
+                              (uint8_t*)src + j * d4_src_pitch, 
                               (uint8_t*)dst + j * d4_dst_pitch,
                               d1_cnt,
                               d2_src_pitch,
@@ -1148,9 +1218,9 @@ void dma_4d_sys2loc_straddles_ch(int ch,
 {
     unsigned added = 0;
     for (unsigned j = 0; j < d4_cnt; ++j) {
-#if (IDMA_USE_3D_DESC == 1)
+#if (IDMA_USE_3D_DESC == 1)    
         added = add_3d_desc64(ch,
-                              (uint8_t*)src + j * d4_src_pitch,
+                              (uint8_t*)src + j * d4_src_pitch, 
                               (uint8_t*)dst + j * d4_dst_pitch,
                               d1_cnt,
                               d2_src_pitch,
@@ -1259,14 +1329,17 @@ void dir_dma_1d_loc2sys_straddles_ch(int ch,
 static idma_status_t idma_add_2d_desc(idma_buffer_t *buff, void *dst, void *src, size_t d1_cnt, int dummy, size_t d2_cnt, int src_pitch, int dst_pitch)
 {
     int ch = 0;
+
+    cnnrt_tls *lptr = cnnrt_tls_get();
+
     for (; ch < XCHAL_IDMA_NUM_CHANNELS; ch++) {
-        if (buff == _idmaObjBuff[ch])
+        if (buff == lptr->_idmaObjBuff[ch])
             break;
     }
     if (ch == XCHAL_IDMA_NUM_CHANNELS) {
         return IDMA_ERR_BAD_DESC;
     }
-    idma_desc_t *d = &buff[(dma_desc_free[ch]++) & (_idmaDescrTotal[ch]-1)];
+    idma_desc_t *d = &buff[(dma_desc_free[ch]++) & (lptr->_idmaDescrTotal[ch]-1)];
     d->ch = ch;
     d->src = src;
     d->dst = dst;
@@ -1277,14 +1350,17 @@ static idma_status_t idma_add_2d_desc(idma_buffer_t *buff, void *dst, void *src,
     return IDMA_OK;
 }
 
-static void do_memcpy(int ch,
+static void do_memcpy(int ch, 
                       int number)
 {
     if (number < 0)
         number = dma_desc_free[ch] - dma_desc_last[ch];
+
+    cnnrt_tls *lptr = cnnrt_tls_get();
+
     while (number > 0 && dma_desc_last[ch] < dma_desc_free[ch]) {
         size_t i;
-        idma_desc_t *d = &(_idmaObjBuff[ch] [(dma_desc_last[ch]++) & (_idmaDescrTotal[ch]-1)]);
+        idma_desc_t *d = &(lptr->_idmaObjBuff[ch] [(dma_desc_last[ch]++) & (lptr->_idmaDescrTotal[ch]-1)]);
 #if (IDMA_USE_3D_DESC == 1)
         for (i=0; i<d->ntiles;i++) {
             for (j=0; j<d->rows; j++) {
@@ -1442,14 +1518,27 @@ static XI_ERR_TYPE xnne_init()
 }
 #endif
 
-XI_ERR_TYPE cnnrt_init(unsigned int dma_queue_size, const local_mem_info_t *mem_info)
+XI_ERR_TYPE cnnrt_init(const unsigned int dma_queue_size, const local_mem_info_t *mem_info)
 {
+    (void)dma_queue_size;
+
     XI_ERROR_CHECKS() {}
 #if CSTUB_BUILD && CNNRT_PERF_LEVEL != CNNRT_PERF_LEVEL_NONE
     printf("Running CSTUBs simulation.\n");
 #endif
     XI_CHECK_RESULT(arena_init(mem_info));
-    XI_CHECK_RESULT(dma_init(dma_queue_size));
+
+#ifdef XOS_BUILD
+    // create TLS key for cnnrt mutable variable ptr
+    xos_tls_create(&cnnrt_tls_key, NULL);
+#endif
+    XI_CHECK_RESULT(cnnrt_dma_init());
+#ifndef XOS_BUILD
+    // it is needed here because of XNNE use IDMA during initialization below.
+    // TODO: multithreading XNNE variant.
+    XI_CHECK_RESULT(cnnrt_dma_init_loops(dma_queue_size));
+#endif
+
 #if XCHAL_HAVE_XNNE == 1
     XI_CHECK_RESULT(xnne_init());
 #endif // XCHAL_HAVE_XNNE == 1
@@ -1460,5 +1549,22 @@ XI_ERR_TYPE cnnrt_init(unsigned int dma_queue_size, const local_mem_info_t *mem_
 void cnnrt_deinit()
 {
     _cnnrt_wait_all();
+#ifdef XOS_BUILD
+    xos_tls_delete(cnnrt_tls_key);
+#endif
     arena_deinit();
+#if CSTUB_BUILD
+    cnnrt_tls *lptr = cnnrt_tls_get();
+
+    for (int i = 0; i < XCHAL_IDMA_NUM_CHANNELS; i++) {
+#ifndef _MSC_VER
+        free(lptr->_idmaObjBuff[i]);
+#else //_MSC_VER
+        _aligned_free(lptr->_idmaObjBuff[i]);
+#endif //_MSC_VER
+    }
+#endif // CSTUB_BUILD
 }
+
+
+

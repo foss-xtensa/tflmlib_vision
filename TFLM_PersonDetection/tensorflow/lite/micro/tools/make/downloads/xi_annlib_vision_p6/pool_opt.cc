@@ -131,8 +131,8 @@ transfer_inp_tile(uint8_t *inputPtr, xi_pTile3D inp, const pool_params_t *params
 
     int validX = max(0, boundX);
     int validY = max(0, boundY);
-    int validW = min(boundW, (int8_t)params->input.W) - validX;
-    int validH = min(boundH, (int8_t)params->input.H) - validY;
+    int validW = min(boundW, params->input.W) - validX;
+    int validH = min(boundH, params->input.H) - validY;
 
     int pad_left = validX - boundX;
     int pad_top = validY - boundY;
@@ -183,7 +183,7 @@ transfer_outp_tile(uint8_t *outputPtr, xi_pTile3D outp, const pool_params_t *par
 XI_ERR_TYPE xiAvgPoolQuantizeA3D_DWH(const xi_pTile3D inTile, xi_pTile3D outTile,
                                     const uint8_t *param, xi_size3D frame3DSize )
 {
-    XI_ERR_TYPE status = XI_ERR_BADARG;
+    XI_ERR_TYPE status;
     //Based on the input tile type we call the appropriate average pooling operation.
     if(XI_TILE3D_GET_TYPE(inTile) == XI_TILE3D_U8){
 	 status = xiAvgPoolQuantizeA_U8_DWH(inTile, outTile, (xi_cnn_avgpoolA_params *)param, frame3DSize);
@@ -256,6 +256,7 @@ XI_ERR_TYPE flk_pool(const uint8_t *raw_params,
                              const xi_size3D frame3DSize);
 
     if(params->type != AVG_POOLING) return XI_ERROR_STATUS();
+    pool_func = NULL;
     if (params->qFlag)
     	assert(0);
     else

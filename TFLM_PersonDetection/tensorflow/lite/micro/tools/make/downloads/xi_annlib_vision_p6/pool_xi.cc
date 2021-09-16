@@ -75,18 +75,3 @@
 #include "avg_poolingAQuantized.h"
 #undef INPUT_DATA_TYPE
 
-#define INPUT_DATA_TYPE  INTEGER8BIT
-#include "extend_edge.h"
-#undef INPUT_DATA_TYPE
-
-//#define INPUT_DATA_TYPE  INTEGER16BIT
-//#include "extend_edge.h"
-//#undef INPUT_DATA_TYPE
-
-#define INPUT_DATA_TYPE  INTEGER8BIT
-#include "fill_tile.h"
-#undef INPUT_DATA_TYPE
-
-//#define INPUT_DATA_TYPE  INTEGER16BIT
-//#include "fill_tile.h"
-//#undef INPUT_DATA_TYPE

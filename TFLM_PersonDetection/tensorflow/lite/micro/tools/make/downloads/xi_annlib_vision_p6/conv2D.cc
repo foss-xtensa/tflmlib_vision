@@ -121,6 +121,8 @@ uint32_t xiConvSetContext(uint8_t *pContext, uint32_t contextSize, const uint32_
 
   size_t bank0Size = mem_info->bank[0].size;
   size_t bank1Size = mem_info->bank[1].size;
+  uint32_t largeBank  = std::max(bank0Size, bank1Size);
+  uint32_t smallBank  = std::min(bank0Size, bank1Size);
 
   mem_inf.localMem.banksNumber = arena_num_banks();
   mem_inf.localMem.bankSize[0] = bank0Size;
@@ -166,6 +168,7 @@ static bool
 ConvReorderCoefficients2(const uint8_t *coeff_ref, const int32_t* bias_ref, uint8_t *coeff, int32_t* bias, const conv_params_t *params)
 {
     int offset = (params->tileType.dataType == XI_TILE3D_S8) ? 0 : 128;
+    int8_t *coeff_ref_s8 = (int8_t *)coeff_ref;
     int tiles_count = (params->output.D + params->tile.D - 1) / params->tile.D;
 
     // TODO
@@ -348,13 +351,18 @@ uint32_t xiConv(uint8_t *pContext, uint32_t contextSize, int8_t * input, uint32_
 #endif //(REF_FLK_CONV2D)
 #if FLK_CYCLES
     int stop = XT_RSR_CCOUNT();
-    printf("Conv2D=%d\n",stop-start);
+    printf("Conv2D (including iDMA) =%d\n",stop-start);
 #endif
 
 #if !IS_MULTICHANNEL_DMA
 	dma_barrier();
+
+#if KERNEL_INFO
+	printf("Conv2D:iW=%d,iH=%d,iD=%d \t kw=%d,kh=%d \t oW=%d,oH=%d,oD=%d \n", convParams->input.W, convParams->input.H, convParams->input.D, convParams->kernelW, convParams->kernelH, convParams->output.W, convParams->output.H, convParams->output.D );
+
 #endif
-    return 0;
+#endif
+	return 0;
 }
 
 uint32_t xiConvDoCoeffReorder(uint8_t *pContext, uint32_t contextSize,

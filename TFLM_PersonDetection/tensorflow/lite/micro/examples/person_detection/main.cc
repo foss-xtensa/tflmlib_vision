@@ -18,6 +18,7 @@ limitations under the License.
 
 #if defined(__XTENSA__)
 #include <xtensa/xt_profiling.h>
+#include <xtensa/sim.h>
 #endif
 
 // This is the default main used on systems that have the standard C entry

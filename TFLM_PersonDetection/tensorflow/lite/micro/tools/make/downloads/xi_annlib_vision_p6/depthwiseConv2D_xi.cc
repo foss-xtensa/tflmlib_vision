@@ -1,29 +1,29 @@
 /*******************************************************************************
-* Copyright (c) 2019 Cadence Design Systems, Inc.
-*
-* Permission is hereby granted, free of charge, to any person obtaining
-* a copy of this software and associated documentation files (the
-* "Software"), to use this Software with Cadence processor cores only and
-* not with any other processors and platforms, subject to
-* the following conditions:
-*
-* The above copyright notice and this permission notice shall be included
-* in all copies or substantial portions of the Software.
-*
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-******************************************************************************/
+ * Copyright (c) 2019 Cadence Design Systems, Inc.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining
+ * a copy of this software and associated documentation files (the
+ * "Software"), to use this Software with Cadence processor cores only and
+ * not with any other processors and platforms, subject to
+ * the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+ * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ ******************************************************************************/
 #define INCLUDE_XI_CNN
 #include "xi_cnn.h"
+#include "cnnrt.h"
 #include "xi_intrin.h"
 #include "xi_cnn_api.h"
-
-
+//#include <stdio.h>
 
 #define CLAMP(v, min, max)                      ((v) < (min) ? (min) : (v) > (max) ? (max) : (v))
 
@@ -34,7 +34,7 @@
   vaBias = IVP_LAN_2X32_PP(phvecBias1);                                                \
   IVP_LAVN_2X32_XP(hvecBias1, vaBias, phvecBias1, remCh1);                             \
   IVP_LAVN_2X32_XP(hvecBias2, vaBias, phvecBias1, remCh2);                             \
-  if (depthMultiplier == 32)                                                           \
+  if (depthMultiplier == XCHAL_IVPN_SIMD_WIDTH)                                        \
   {                                                                                    \
     hvecBias3 = hvecBias1;                                                             \
     hvecBias4 = hvecBias2;                                                             \
@@ -43,7 +43,7 @@
     hvecLeftShift3 = hvecLeftShift1;                                                   \
     hvecLeftShift4 = hvecLeftShift2;                                                   \
   }                                                                                    \
-  else if (depthMultiplier == 16)                                                      \
+  else if (depthMultiplier == (XCHAL_IVPN_SIMD_WIDTH/2))                               \
   {                                                                                    \
     hvecBias2 = hvecBias1;                                                             \
     hvecBias3 = hvecBias1;                                                             \
@@ -55,7 +55,7 @@
     hvecLeftShift3 = hvecLeftShift1;                                                   \
     hvecLeftShift4 = hvecLeftShift1;                                                   \
   }                                                                                    \
-  else if (depthMultiplier <= 8)                                                       \
+  else if (depthMultiplier <= (XCHAL_IVPN_SIMD_WIDTH/4))                               \
   {                                                                                    \
     hvecBias1 = IVP_SELN_2X32(hvecBias1, hvecBias1, hvecBiasSelLT16);                  \
     hvecScale1 = IVP_SELN_2X32(hvecScale1, hvecScale1, hvecBiasSelLT16);               \
@@ -74,35 +74,34 @@
   IVP_CVT24UNX32H(daccSum1, hvecBias4, hvecBias3);                                     \
 }
 
-int32_t selpat[16] _XI_LOCAL_RAM0_ = { 0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7};
-int16_t selpat1[32] _XI_LOCAL_RAM0_ = { 0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7};
+int32_t selpat[16] _LOCAL_RAM_ = { 0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7};
+int16_t selpat1[32] _LOCAL_RAM_ = { 0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7};
 
-int8_t dselpat[64] _XI_LOCAL_RAM0_ =
+int8_t dselpat[64] _LOCAL_RAM_ =
 {
     0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,2,3,2,3,2,3,2,3,2,3,2,3,2,3,2,3,
     4,5,4,5,4,5,4,5,4,5,4,5,4,5,4,5,6,7,6,7,6,7,6,7,6,7,6,7,6,7,6,7
 };
 
-int16_t selpat4[32] _XI_LOCAL_RAM0_ =
+int16_t selpat4[32] _LOCAL_RAM_ =
 {2,2,2,2,2,2,2,2,4,4,4,4,4,4,4,4,6,6,6,6,6,6,6,6,8,8,8,8,8,8,8,8};
 
 
-int8_t dselpat1[64] _XI_LOCAL_RAM0_ =
+int8_t dselpat1[64] _LOCAL_RAM_ =
 {
     8,9,8,9,8,9,8,9,8,9,8,9,8,9,8,9,10,11,10,11,10,11,10,11,10,11,10,11,10,11,10,11,
     12,13,12,13,12,13,12,13,12,13,12,13,12,13,12,13,14,15,14,15,14,15,14,15,14,15,14,15,14,15,14,15
 };
 
-int8_t dselpat_lo_hi[64] _XI_LOCAL_RAM0_ =
+int8_t dselpat_lo_hi[64] _LOCAL_RAM_ =
 {
     0,16,1,17,2,18,3,19,4,20,5,21,6,22,7,23,8,24,9,25,10,26,11,27,12,28,13,29,14,30,15,31,
     32,48,33,49,34,50,35,51,36,52,37,53,38,54,39,55,40,56,41,57,42,58,43,59,44,60,45,61,46,62,47,63,
 };
 
-int16_t selpat5[32] _XI_LOCAL_RAM0_ =
+int16_t selpat5[32] _LOCAL_RAM_ =
 {10,10,10,10,10,10,10,10,12,12,12,12,12,12,12,12,14,14,14,14,14,14,14,14,16,16,16,16,16,16,16,16};
-
-int16_t selpat_lo_4[32] _XI_LOCAL_RAM0_ =
+int16_t selpat_lo_4[32] _LOCAL_RAM_ =
 { 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7 };
 
 
@@ -243,6 +242,10 @@ XI_ERR_TYPE xiDepthwiseMultiplierConvolvedA3D_U8_DWH(const xi_pTile3D inTile,
   const uint8_t maxLim = enableReLu ? reluMax : UCHAR_MAX;
   int32_t leftShift = outShift < 0 ? -outShift : 0;
   int32_t rightShift = outShift < 0 ? 0 : outShift;
+  uint8_t *__restrict pInData11;
+  uint8_t *__restrict pInData12;
+  uint8_t *__restrict pInData21;
+  uint8_t *__restrict pInData22;
   xb_vecNx8U *__restrict pvecOutData;
   xb_vecNx8U *__restrict pvecFilter;
   xb_vec2Nx8U *__restrict pVecIn0;
@@ -279,6 +282,8 @@ XI_ERR_TYPE xiDepthwiseMultiplierConvolvedA3D_U8_DWH(const xi_pTile3D inTile,
         int32_t enable2Row    = XT_SALT(outY, outHeight - 1);
         for (int32_t outX = 0; outX < outWidth; outX += 8) // process 4 width at once
         {
+            int32_t enable2Col    = XT_SALT(outX, outWidth - 1);
+            int32_t enable2RowCol  = enable2Col * enable2Row;
             for (int32_t ic = 0; ic < inDepth; ic++) // Input depth index
             {
                 for (int32_t m = 0; m < depthMultiplier; m += XCHAL_IVPN_SIMD_WIDTH) // DepthMultiplier used to move about outputDepth
@@ -357,6 +362,7 @@ XI_ERR_TYPE xiDepthwiseMultiplierConvolvedA3D_U8_DWH(const xi_pTile3D inTile,
                         IVP_MULPANX16(dacc22, vech13, vecFilter00, vecInOffset, vecFilter00);
                         IVP_MULPANX16(dacc22, vech14, vecFilter01, vecInOffset, vecFilter01);
                         IVP_MULPANX16(dacc22, vech15, vecFilter02, vecInOffset, vecFilter02);
+
                     }
                      ADD48_ZPT_PACK_SCALE_SHIFT_CLAMP_LIMITS(vecOut11, dacc11, outputOffset, leftShift, rightShift, outMultiplier, maxLim, minLim);
                      ADD48_ZPT_PACK_SCALE_SHIFT_CLAMP_LIMITS(vecOut12, dacc12, outputOffset, leftShift, rightShift, outMultiplier, maxLim, minLim);
@@ -752,6 +758,11 @@ void depthwiseConvolveA2D_S_3x3j2_U8Ca2_MOD_DWH(
           xb_vecNx16 vecData11_2 = IVP_SUBNX16U(vecData11_2U, zeroPtInputU);
           xb_vecNx16 vecData21_2 = IVP_SUBNX16U(vecData21_2U, zeroPtInputU);
           xb_vecNx16 vecData31_2 = IVP_SUBNX16U(vecData31_2U, zeroPtInputU);
+#if (XCHAL_IVPN_SIMD_WIDTH==8)
+#ifndef IVP_DMULQA2N8XR8
+#pragma unroll 2
+#endif
+#endif
           for (x = 0; x < outW; x+=2)
           { /* walk across the columns */
             /* Output Data pointer */
@@ -1212,6 +1223,7 @@ XI_ERR_TYPE xiDepthwiseConvolveA2D_S_3x3_U8Ca2_MOD_DWH(
         pdvecOut1 = (xb_vec2Nx8U *)(pOut);
         for (x = 0; x < outW; x++)
         {                         /* walk across the columns */
+
           /* Initialize accumulator with bias values */
           daccSum1 = daccSum;
 
@@ -1359,6 +1371,7 @@ XI_ERR_TYPE xiDepthwiseConvolveA2D_S_3x3_U8Ca2_MOD_DWH(
 
             for (y = 0; y < outH; y+=2)
       {                   /* walk down the rows */
+
               int32_t enable2Row    = XT_SALT(y, outH - 1);
         /* Input Data Pointers */
         int8_t *pData = pInData + ch + y * stride * inDataPitch2;
@@ -1410,6 +1423,7 @@ XI_ERR_TYPE xiDepthwiseConvolveA2D_S_3x3_U8Ca2_MOD_DWH(
 
         for (x = 0; x < outW; x++)
         {                         /* walk across the columns */
+
           /* Initialize accumulator with bias values */
           accSum1 = accSum;
                 accSum2 = accSum;
@@ -1638,7 +1652,6 @@ XI_ERR_TYPE xiDepthwiseConvolveA2D_S_3x3_U8Ca2_MOD_DWH(
 #endif
   return(XI_ERROR_STATUS());
 }
-
 #if ((XCHAL_VISION_TYPE >= 6) && defined(INCLUDE_XI_CNN))
 
 #ifdef IVP_PACKVNX48 /* Only available in Q7*/
@@ -1765,7 +1778,6 @@ XI_ERR_TYPE xiDepthwiseConvolveA2D_S_3x3_U8Ca2_MOD_DWH(
   vecOutH = (IVP_MAXNX16(IVP_MINNX16(vecOutAddZP_H, (xb_vecNx16) maxLim), (xb_vecNx16) minLim));               \
   dvecOut = IVP_SEL2NX8I(IVP_MOV2NX8_FROMNX16(vecOutH), IVP_MOV2NX8_FROMNX16(vecOutL), IVP_SELI_8B_EXTRACT_1_OF_2_OFF_0); \
 }
-
 #define PACK_SCALE_AND_ROUNDING_DEPTHWISE_VQ_FOLD4(accSum, vecOutput)                              \
   {                                                                                                \
     /* Move the 24 bit accumulated sum to 32 bit vec registers. */                                 \
@@ -1845,6 +1857,7 @@ XI_ERR_TYPE xiDepthwiseConvolveA2D_S_3x3_U8Ca2_MOD_DWH(
     }                                                                  \
   }                                                                    \
 }
+
 #endif
 /*****************************************************************************
 * Stride 2 Sub-variant
@@ -1858,6 +1871,7 @@ void depthwiseConvolveAVQ2D_S_3x3j2_S8Ca2_MOD_DWH(const xi_pTile3D inTile,
                                                 xi_pTile3D outTile,
                                                 const xi_cnna_conv_params *param)
 {
+//	printf("Func=%s\n",__FUNCTION__);
   /* Getting parameters from the tile structures */
   const int32_t outW          = XI_TILE3D_GET_DIM2(outTile);
   const int32_t outH          = XI_TILE3D_GET_DIM3(outTile);
@@ -1933,10 +1947,10 @@ void depthwiseConvolveAVQ2D_S_3x3j2_S8Ca2_MOD_DWH(const xi_pTile3D inTile,
     int32_t remainingCh = XT_MIN((numCh - ch), vectorizationWidth);
     int32_t remBiasLoad = (remainingCh > XCHAL_IVPN_SIMD_WIDTH) ? 1 : 0;
 
-    int32_t remCh1 = XT_MIN(((numCh - ch) << 2), 64);
-    int32_t remCh2 = XT_MIN((((numCh - ch) - 16) << 2), 64);
-    int32_t remCh3 = XT_MIN((((numCh - ch) - 32) << 2), 64);
-    int32_t remCh4 = XT_MIN((((numCh - ch) - 48) << 2), 64);
+    int32_t remCh1 = XT_MIN(((numCh - ch) << 2), (2 * XCHAL_IVPN_SIMD_WIDTH));
+    int32_t remCh2 = XT_MIN((((numCh - ch) - (XCHAL_IVPN_SIMD_WIDTH/2)) << 2), (2 * XCHAL_IVPN_SIMD_WIDTH));
+    int32_t remCh3 = XT_MIN((((numCh - ch) - XCHAL_IVPN_SIMD_WIDTH) << 2), (2 * XCHAL_IVPN_SIMD_WIDTH));
+    int32_t remCh4 = XT_MIN((((numCh - ch) - (XCHAL_IVPN_SIMD_WIDTH + (XCHAL_IVPN_SIMD_WIDTH/2))) << 2), (2 * XCHAL_IVPN_SIMD_WIDTH));
 
     /* Load OutScale values */
     phvecOutScale1 = (xb_vecN_2x32v*)(pOutScale + ch);
@@ -2023,44 +2037,40 @@ void depthwiseConvolveAVQ2D_S_3x3j2_S8Ca2_MOD_DWH(const xi_pTile3D inTile,
       pdvecOut = (xb_vec2Nx8 *)(pOut);
 
       /* Input loads*/
-      /* ky = 0*/
-      valign vaData = IVP_LA2NX8_PP(pdvecData1);
-      IVP_LA2NX8_XP(dvecData11, vaData, pdvecData1, inDataPitch2);
-      /* ky = 1*/
-      vaData = IVP_LA2NX8_PP(pdvecData1);
-      IVP_LA2NX8_XP(dvecData21, vaData, pdvecData1, inDataPitch2);
-      /* ky = 2*/
-      vaData = IVP_LA2NX8_PP(pdvecData1);
-      IVP_LA2NX8_XP(dvecData31, vaData, pdvecData1, inDataPitch1);
+	  /* ky = 0*/
+	  IVP_L2U2NX8_XP(dvecData11, pdvecData1, inDataPitch2);
+	  /* ky = 1*/
+	  IVP_L2U2NX8_XP(dvecData21, pdvecData1, inDataPitch2);
+	  /* ky = 2*/
+	  IVP_L2U2NX8_XP(dvecData31, pdvecData1, inDataPitch1);
+
+#if (XCHAL_IVPN_SIMD_WIDTH==8)
+#ifndef IVP_DMULQA2N8XR8
+	 #pragma unroll 2
+#endif
+#endif
+
       for (x = 0; x < outW; x++)  /* along output width */
       {
         /* Initialize accumulator with bias values */
         daccSum1 = daccSum;
 
         /* ky = 0*/
-        valign vaData2 = IVP_LA2NX8_PP(pdvecData2);
-        IVP_LA2NX8_XP(dvecData12, vaData2, pdvecData2, inDataPitch2);
-        valign vaData3 = IVP_LA2NX8_PP(pdvecData3);
-        IVP_LA2NX8_XP(dvecData13, vaData3, pdvecData3, inDataPitch2);
-
-        /* ky = 1*/
-        vaData2 = IVP_LA2NX8_PP(pdvecData2);
-        IVP_LA2NX8_XP(dvecData22, vaData2, pdvecData2, inDataPitch2);
-        vaData3 = IVP_LA2NX8_PP(pdvecData3);
-        IVP_LA2NX8_XP(dvecData23, vaData3, pdvecData3, inDataPitch2);
-
-        /* ky = 2*/
-        vaData2 = IVP_LA2NX8_PP(pdvecData2);
-        IVP_LA2NX8_XP(dvecData32, vaData2, pdvecData2, 2 * (inDataPitch1 - inDataPitch2));
-        vaData3 = IVP_LA2NX8_PP(pdvecData3);
-        IVP_LA2NX8_XP(dvecData33, vaData3, pdvecData3, 2 * (inDataPitch1 - inDataPitch2));
+ 		IVP_L2U2NX8_XP(dvecData12, pdvecData2, inDataPitch2);
+		IVP_L2U2NX8_XP(dvecData13, pdvecData3, inDataPitch2);
+		/* ky = 1*/
+		IVP_L2U2NX8_XP(dvecData22, pdvecData2, inDataPitch2);
+		IVP_L2U2NX8_XP(dvecData23, pdvecData3, inDataPitch2);
+		/* ky = 2*/
+		IVP_L2U2NX8_XP(dvecData32, pdvecData2, 2 * (inDataPitch1 - inDataPitch2));
+		IVP_L2U2NX8_XP(dvecData33, pdvecData3, 2 * (inDataPitch1 - inDataPitch2));
 
         /*Multiply and accumulate input data vector and coeff vector */
         IVP_MULPA2NX8(daccSum1, dvecCoeff11, dvecData11, dvecCoeff12, dvecData12);
         IVP_MULPA2NX8(daccSum1, dvecCoeff13, dvecData13, dvecCoeff21, dvecData21);
         IVP_MULPA2NX8(daccSum1, dvecCoeff22, dvecData22, dvecCoeff23, dvecData23);
         IVP_MULPA2NX8(daccSum1, dvecCoeff31, dvecData31, dvecCoeff32, dvecData32);
-        IVP_MULA2NX8 (daccSum1, dvecCoeff33, dvecData33);
+        IVP_MULA2NX8(daccSum1, dvecCoeff33, dvecData33);
 
         /* Pack, Output Scale, Output Shift and clamping */
         PACK_SCALE_AND_ROUNDING_DEPTHWISE_VQ(daccSum1, dvecOut);
@@ -2075,6 +2085,8 @@ void depthwiseConvolveAVQ2D_S_3x3j2_S8Ca2_MOD_DWH(const xi_pTile3D inTile,
     }   /* End for (y = 0; y < outH; y ++) */
   }     /* End for (ch = 0; ch < numCh; ch += 2 * XCHAL_IVPN_SIMD_WIDTH) */
 }
+
+
 
 void depthwiseConvolveAVQ2D_S_3x3j2_S8Ca2_MOD_DWH_FOLD2(const xi_pTile3D inTile,
                                                         const xi_pTile3D coeffTile,
@@ -2142,10 +2154,13 @@ void depthwiseConvolveAVQ2D_S_3x3j2_S8Ca2_MOD_DWH_FOLD2(const xi_pTile3D inTile,
 
   /* Input and Output data vectors */
   xb_vecNx48 accSum, accSum1, accSum2;
-  xb_vecN_2x32v hvecScale1, hvecScale2;
+  xb_vecN_2x32v hvecScale1, hvecScale2, hvecScale3, hvecScale4;
   xb_vecNx16 vecCoeff11, vecCoeff12, vecCoeff13;
   xb_vecNx16 vecCoeff21, vecCoeff22, vecCoeff23;
   xb_vecNx16 vecCoeff31, vecCoeff32, vecCoeff33;
+  xb_vecNx16 vecData11, vecData12, vecData13;
+  xb_vecNx16 vecData21, vecData22, vecData23;
+  xb_vecNx16 vecData31, vecData32, vecData33;
   xb_vecNx16 vecOut, vecOut1;
 
   int32_t vectorizationWidth = 2 * XCHAL_IVPN_SIMD_WIDTH;
@@ -2160,7 +2175,10 @@ void depthwiseConvolveAVQ2D_S_3x3j2_S8Ca2_MOD_DWH_FOLD2(const xi_pTile3D inTile,
     int32_t remainingCh = XT_MIN((numCh - ch), vectorizationWidth);
     int32_t remBiasLoad = (remainingCh > XCHAL_IVPN_SIMD_WIDTH) ? 1 : 0;
 
-    int32_t remCh1 = XT_MIN(((numCh - ch) << 2), 64);
+    int32_t remCh1 = XT_MIN(((numCh - ch) << 2), (2*XCHAL_IVPN_SIMD_WIDTH));
+    int32_t remCh2 = XT_MIN((((numCh - ch) - (XCHAL_IVPN_SIMD_WIDTH/2)) << 2), (2*XCHAL_IVPN_SIMD_WIDTH));
+    int32_t remCh3 = XT_MIN((((numCh - ch) - XCHAL_IVPN_SIMD_WIDTH) << 2), (2*XCHAL_IVPN_SIMD_WIDTH));
+    int32_t remCh4 = XT_MIN((((numCh - ch) - (XCHAL_IVPN_SIMD_WIDTH - (XCHAL_IVPN_SIMD_WIDTH/2))) << 2), (2*XCHAL_IVPN_SIMD_WIDTH));
 
     phvecBias = (xb_vecN_2x32v *) (pBiasData);
     xb_vecN_2x32v hvecBias1, hvecBias2;
@@ -2189,6 +2207,7 @@ void depthwiseConvolveAVQ2D_S_3x3j2_S8Ca2_MOD_DWH_FOLD2(const xi_pTile3D inTile,
     xb_vecNx16 vecLeftShift  = 0;
     IVP_SUBNX16T(vecLeftShift, 0, vecShift, vbN);
 
+    xb_vecNx16 vecLeftShiftL, vecLeftShiftH;
     xb_vecN_2x32v hvecLeftShift1 = IVP_UNPKSNX16_L(vecLeftShift);
     xb_vecN_2x32v hvecLeftShift2 = IVP_UNPKSNX16_H(vecLeftShift);
 
@@ -2267,6 +2286,11 @@ void depthwiseConvolveAVQ2D_S_3x3j2_S8Ca2_MOD_DWH_FOLD2(const xi_pTile3D inTile,
       vaData3 = IVP_LANX8S_PP(pvecData6);
       xb_vecNx16 vecData31_2; IVP_LANX8S_XP(vecData31_2, vaData3, pvecData6, 2 * inDataPitch1);
 
+#if (XCHAL_IVPN_SIMD_WIDTH==8)
+#ifndef IVP_DMULQA2N8XR8
+#pragma unroll 2
+#endif
+#endif
       for (x = 0; x < outW; x += 2) /* along output width */
       {
         int8_t *pOut  = pOutData + (x * outDataPitch1 + y * outDataPitch2);
@@ -2521,6 +2545,7 @@ void depthwiseConvolveAVQ2D_S_3x3j4_S8Ca2_MOD_DWH(const xi_pTile3D inTile,
       /* Output Data pointer */
       int8_t *pOut = pOutData + (y * outDataPitch2 + ch);
       pdvecOut = (xb_vec2Nx8 *)(pOut);
+
       for (x = 0; x < outW; x++) /* Along Output Width */
       {
         /* Initialize accumulator with bias values */
@@ -2579,6 +2604,7 @@ void depthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH_FOLD(const xi_pTile3D inTile,
                                                      xi_pTile3D outTile,
                                                      const xi_cnna_conv_params *param)
 {
+//	printf("Func=%s\n",__FUNCTION__);
   /* Getting parameters from the tile structures */
   const int32_t numCh         = XI_TILE3D_GET_DIM1(inTile);
   const int32_t outW          = XI_TILE3D_GET_DIM2(outTile);
@@ -2640,7 +2666,7 @@ void depthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH_FOLD(const xi_pTile3D inTile,
   xb_vec2Nx8 dvecSeq1 = IVP_ADD2NX8(IVP_SEQ2NX8(), numCh);
   vbool2N vbl1 = IVP_GE2NX8(dvecSeq1, numCh * 2);
   IVP_SUB2NX8T(dvecSeq1, dvecSeq1, numCh * 2, vbl1);
-  IVP_ADD2NX8T(dvecSeq1, dvecSeq1, 64, vbl1);
+  IVP_ADD2NX8T(dvecSeq1, dvecSeq1, (2 * XCHAL_IVPN_SIMD_WIDTH), vbl1);
 
   xb_vec2Nx8 dvecSeq2 = IVP_SEQ2NX8();
   vbl1 = IVP_GE2NX8(dvecSeq2, numCh);
@@ -2770,13 +2796,13 @@ void depthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH_FOLD(const xi_pTile3D inTile,
     xb_vecN_2x32v hvecBias1, hvecBias2;
     valign vaBias = IVP_LAN_2X32_PP(phvecBias);
     IVP_LAVN_2X32_XP(hvecBias1, vaBias, phvecBias, numCh << 2);
-    IVP_LAVN_2X32_XP(hvecBias2, vaBias, phvecBias, (numCh - 16) << 2);
+    IVP_LAVN_2X32_XP(hvecBias2, vaBias, phvecBias, (numCh - (XCHAL_IVPN_SIMD_WIDTH/2)) << 2);
     /* Load Scale values */
     phvecOutScale = (xb_vecN_2x32v *)(pOutScale);
     xb_vecN_2x32v hvecScale1, hvecScale2, hvecScale3, hvecScale4;
     valign vaOutScale = IVP_LAN_2X32_PP(phvecOutScale);
     IVP_LAVN_2X32_XP(hvecScale1, vaOutScale, phvecOutScale,numCh<<2 );
-    IVP_LAVN_2X32_XP(hvecScale2, vaOutScale, phvecOutScale, (numCh - 16) << 2);
+    IVP_LAVN_2X32_XP(hvecScale2, vaOutScale, phvecOutScale, (numCh - (XCHAL_IVPN_SIMD_WIDTH/2)) << 2);
     /* Load Shift values */
     pdvecOutShift = (xb_vec2Nx8 *)pOutShift;
     xb_vec2Nx8 dvecShift;
@@ -2846,14 +2872,14 @@ void depthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH_FOLD(const xi_pTile3D inTile,
     xb_vecN_2x32v hvecFixHL = IVP_CVT32SNX48L(accFixupH);
     xb_vecN_2x32v hvecFixHH = IVP_CVT32SNX48H(accFixupH);
     /*Taking width 1 output and width2 output operations in a contiguous format*/
-    if (numCh <= 16)
+    if (numCh <= (XCHAL_IVPN_SIMD_WIDTH/2))
     {
       /*For eg; if d == 15, the sequence in accumulator is
       0 1 2 ....13 14 0 1 2 ....13 14*/
       xb_vecN_2x32v hvecSeq1 = IVP_SEQN_2X32();
       vboolN_2 vbl1 = IVP_GEN_2X32(hvecSeq1, numCh);
       IVP_SUBN_2X32T(hvecSeq1, hvecSeq1, numCh, vbl1);
-      xb_vecN_2x32v hvecSeq2 = IVP_ADDN_2X32(IVP_SEQN_2X32(), 16 - numCh);
+      xb_vecN_2x32v hvecSeq2 = IVP_ADDN_2X32(IVP_SEQN_2X32(), (XCHAL_IVPN_SIMD_WIDTH/2) - numCh);
       hvecBias1 = IVP_SELN_2X32(hvecBias1, hvecBias1, hvecSeq1);
       hvecBias2 = IVP_SELN_2X32(hvecBias2, hvecBias1, hvecSeq2);
       hvecBias1 = IVP_SUBN_2X32(hvecBias1, hvecFixLL);
@@ -2870,10 +2896,10 @@ void depthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH_FOLD(const xi_pTile3D inTile,
     {
       /*For eg; if d == 31, the sequence in accumulator is
       0 1 2 ....29 30 0 1 2 ....29 30*/
-      xb_vecN_2x32v hvecSeq1 = IVP_ADDN_2X32(IVP_SEQN_2X32(), 16);
+      xb_vecN_2x32v hvecSeq1 = IVP_ADDN_2X32(IVP_SEQN_2X32(), (XCHAL_IVPN_SIMD_WIDTH/2));
       vboolN_2 vbl1 = IVP_GEN_2X32(hvecSeq1, numCh);
       IVP_SUBN_2X32T(hvecSeq1, hvecSeq1, numCh, vbl1);
-      xb_vecN_2x32v hvecSeq2 = IVP_ADDN_2X32(IVP_SEQN_2X32(), 32 - numCh);
+      xb_vecN_2x32v hvecSeq2 = IVP_ADDN_2X32(IVP_SEQN_2X32(), XCHAL_IVPN_SIMD_WIDTH - numCh);
       xb_vecN_2x32v hvecBias2A = IVP_SELN_2X32(hvecBias2, hvecBias1, hvecSeq1);
       xb_vecN_2x32v hvecBias3A = IVP_SELN_2X32(hvecBias2, hvecBias1, hvecSeq2);
       xb_vecN_2x32v hvecBias4A = IVP_SELN_2X32(hvecBias2, hvecBias2, hvecSeq2);
@@ -2917,6 +2943,13 @@ void depthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH_FOLD(const xi_pTile3D inTile,
       valign vaData2 = IVP_LA2NX8_PP(pdvecData1);
       valign vaData3 = IVP_LA2NX8_PP(pdvecData2);
       valign vaData4 = IVP_LA2NX8_PP(pdvecData3);
+
+#if (XCHAL_IVPN_SIMD_WIDTH==8)
+#ifndef IVP_DMULQA2N8XR8
+#pragma unroll 2
+#endif
+#endif
+
       for (x = 0; x < (outW - 1); x+= 2)   /* Along Output Width */
       {
         /* Initialize accumulator with bias values */
@@ -3037,6 +3070,9 @@ void depthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH_FOLD4(const xi_pTile3D inTile,
   xb_vecNx8* __restrict pvecOut;
   xb_vecNx8* __restrict pvecOut1;
   /* Input and Output data Pointers */
+  xb_vecNx16 vecData11, vecData12, vecData13;
+  xb_vecNx16 vecData21, vecData22, vecData23;
+  xb_vecNx16 vecData31, vecData32, vecData33;
   xb_vecNx16 vecOut, vecOut1;
   xb_vecNx16 vecCoeff11, vecCoeff12, vecCoeff13;
   xb_vecNx16 vecCoeff21, vecCoeff22, vecCoeff23;
@@ -3045,11 +3081,12 @@ void depthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH_FOLD4(const xi_pTile3D inTile,
 
   /* Variable Declarations */
   int32_t x, y;
+  int32_t vectorizationWidth = 2 * XCHAL_IVPN_SIMD_WIDTH;
   /* Sequence for select Pattern */
   xb_vec2Nx8 dvecSeq1 = IVP_ADD2NX8(IVP_SEQ2NX8(), numCh);
   vbool2N vbl1        = IVP_GE2NX8(dvecSeq1, numCh * 2);
   IVP_SUB2NX8T(dvecSeq1, dvecSeq1, numCh * 2, vbl1);
-  IVP_ADD2NX8T(dvecSeq1, dvecSeq1, 64, vbl1);
+  IVP_ADD2NX8T(dvecSeq1, dvecSeq1, XCHAL_IVPN_SIMD_WIDTH*2, vbl1);
 
   xb_vec2Nx8 dvecSeq2 = IVP_SEQ2NX8();
   vbl1 = IVP_GE2NX8(dvecSeq2, numCh);
@@ -3070,7 +3107,7 @@ void depthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH_FOLD4(const xi_pTile3D inTile,
 
   /* Load Scale values */
   phvecOutScale = (xb_vecN_2x32v *) (pOutScale);
-  xb_vecN_2x32v hvecScale1, hvecScale2;
+  xb_vecN_2x32v hvecScale1, hvecScale2, hvecScale3, hvecScale4;
   valign vaOutScale = IVP_LAN_2X32_PP(phvecOutScale);
   IVP_LAVN_2X32_XP(hvecScale1, vaOutScale, phvecOutScale, numCh << 2);
   hvecScale1 = IVP_SELN_2X32I(hvecScale1, hvecScale1, IVP_SELI_32B_EXTRACT_LO_HALVES);
@@ -3088,6 +3125,7 @@ void depthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH_FOLD4(const xi_pTile3D inTile,
   IVP_SUBNX16T(vecLeftShift, 0, vecShift, vbN);
 
   /* Calculate left shift values */
+  xb_vecNx16 vecLeftShiftL, vecLeftShiftH;
   xb_vecN_2x32v hvecLeftShift1 = IVP_UNPKSNX16_L(vecLeftShift);
   xb_vecN_2x32v hvecLeftShift2 = IVP_UNPKSNX16_H(vecLeftShift);
 
@@ -3210,7 +3248,6 @@ void depthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH_FOLD4(const xi_pTile3D inTile,
     }     /* End for (x = 0; x < outW-1; x +=2) */
   }       /* End for (y = 0; y < outH; y ++) */
 }
-
 /*****************************************************************************
 * Generic variant for 3x3 DepthwiseConvolveAVQ2D_MOD_DWH
 *  **************************************************************************/
@@ -3222,6 +3259,7 @@ void depthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH(const xi_pTile3D inTile,
                                                 xi_pTile3D outTile,
                                                 const xi_cnna_conv_params *param)
 {
+//	printf("Func=%s\n",__FUNCTION__);
   /* Getting parameters from the tile structures */
   const int32_t numCh         = XI_TILE3D_GET_DIM1(inTile);
   const int32_t outW          = XI_TILE3D_GET_DIM2(outTile);
@@ -3286,10 +3324,10 @@ void depthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH(const xi_pTile3D inTile,
     int32_t remainingOutCh = XT_MIN(vectorizationWidth, numCh - ch);
     int32_t remBiasLoad = (remainingOutCh > XCHAL_IVPN_SIMD_WIDTH) ? 1 : 0;
 
-    int32_t remCh1 = XT_MIN(((numCh - ch) << 2), 64);
-    int32_t remCh2 = XT_MIN((((numCh - ch) - 16) << 2), 64);
-    int32_t remCh3 = XT_MIN((((numCh - ch) - 32) << 2), 64);
-    int32_t remCh4 = XT_MIN((((numCh - ch) - 48) << 2), 64);
+    int32_t remCh1 = XT_MIN(((numCh - ch) << 2), (2 * XCHAL_IVPN_SIMD_WIDTH));
+    int32_t remCh2 = XT_MIN((((numCh - ch) - (XCHAL_IVPN_SIMD_WIDTH/2)) << 2), (2 * XCHAL_IVPN_SIMD_WIDTH));
+    int32_t remCh3 = XT_MIN((((numCh - ch) - XCHAL_IVPN_SIMD_WIDTH) << 2), (2 * XCHAL_IVPN_SIMD_WIDTH));
+    int32_t remCh4 = XT_MIN((((numCh - ch) - (XCHAL_IVPN_SIMD_WIDTH + (XCHAL_IVPN_SIMD_WIDTH/2))) << 2), (2 * XCHAL_IVPN_SIMD_WIDTH));
 
     /* Load OutScale values */
     phvecOutScale1 = (xb_vecN_2x32v*)(pOutScale + ch);
@@ -3397,6 +3435,12 @@ void depthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH(const xi_pTile3D inTile,
       vaData1 = IVP_LA2NX8_PP(pdvecData3);
       IVP_LA2NX8_XP(dvecData32, vaData1, pdvecData3, inDataPitch1);
 
+#if (XCHAL_IVPN_SIMD_WIDTH==8)
+#ifndef IVP_DMULQA2N8XR8
+	#pragma unroll 2
+#endif
+#endif
+
       for (x = 0; x < outW; x++)/* Along Output Width */
       {
         /* Initialize accumulator with bias values */
@@ -3434,6 +3478,7 @@ void depthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH(const xi_pTile3D inTile,
     }    /* for (y = 0; y < outH; y++) */
   }      /* for (ch = 0; ch < numCh; ch += vectorizationWidth) */
 }
+
 
 /**************************************************************************************/
 /***************** xiDepthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH ***********************/
@@ -3493,11 +3538,11 @@ XI_ERR_TYPE xiDepthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH(const xi_pTile3D inTile
     XI_CHECK_TILE3D_IALIGNMENT_2NX8(coeffTile);
     XI_CHECK_CONSISTENCYA_DEPTHWISE_MOD_DWH(inTile, coeffTile, biasArray, outTile, param);
     XI_CHECK_ERROR(XI_ARRAY_GET_WIDTH(outScaleArray) >= XI_TILE3D_GET_DIM1(outTile), XI_ERR_DATASIZE, \
-      "\nWidth of Output Scale Array = %d, Number of output channels = %d\nWidth of Output Scale Array should be \
-      greater than or equal to Number of output channels", XI_ARRAY_GET_WIDTH(outScaleArray), XI_TILE3D_GET_DIM1(outTile));
+                   "\nWidth of Output Scale Array = %d, Number of output channels = %d\nWidth of Output Scale Array should be \
+      greater than or equal to Number of output channels"                                                                                                                                 , XI_ARRAY_GET_WIDTH(outScaleArray), XI_TILE3D_GET_DIM1(outTile));
     XI_CHECK_ERROR(XI_ARRAY_GET_WIDTH(outShiftArray) >= XI_TILE3D_GET_DIM1(outTile), XI_ERR_DATASIZE, \
-      "\nWidth of Output Shift Array = %d, Number of output channels = %d\nWidth of Output Shift Array should be \
-      greater than or equal to Number of output channels", XI_ARRAY_GET_WIDTH(outShiftArray), XI_TILE3D_GET_DIM1(outTile));
+                   "\nWidth of Output Shift Array = %d, Number of output channels = %d\nWidth of Output Shift Array should be \
+      greater than or equal to Number of output channels"                                                                                                                                 , XI_ARRAY_GET_WIDTH(outShiftArray), XI_TILE3D_GET_DIM1(outTile));
     if (XI_CNNA_CONV_GET_FLAG_RELU(param))
     {
       XI_CHECK_ERROR(XI_CNNA_CONV_GET_RELUMIN(param) <= XI_CNNA_CONV_GET_RELUMAX(param), XI_ERR_BADARG, \
@@ -3517,7 +3562,8 @@ XI_ERR_TYPE xiDepthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH(const xi_pTile3D inTile
     XI_CHECK_ERROR((XI_CNNA_CONV_GET_ZEROPT_COEFF(param) == 0), XI_ERR_BADARG,\
       "\nZero point coefficient = %hi, value should be equal to zero", XI_CNNA_CONV_GET_ZEROPT_COEFF(param));
   }
-  if (XI_CNNA_CONV_GET_STRIDE(param) == 2 && (XI_TILE3D_GET_DIM1(inTile) == 16) && (XI_TILE3D_GET_DIM1_PITCH(inTile) == XI_TILE3D_GET_DIM1(inTile)))
+
+  if (XI_CNNA_CONV_GET_STRIDE(param) == 2 && (XI_TILE3D_GET_DIM1(inTile) == (XCHAL_IVPN_SIMD_WIDTH/2)) && (XI_TILE3D_GET_DIM1_PITCH(inTile) == XI_TILE3D_GET_DIM1(inTile)))
   {
     depthwiseConvolveAVQ2D_S_3x3j2_S8Ca2_MOD_DWH_FOLD2(inTile, coeffTile, biasArray, outScaleArray, outShiftArray, outTile, param);
   }
@@ -3529,13 +3575,13 @@ XI_ERR_TYPE xiDepthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH(const xi_pTile3D inTile
   {
     depthwiseConvolveAVQ2D_S_3x3j4_S8Ca2_MOD_DWH(inTile, coeffTile, biasArray, outScaleArray, outShiftArray, outTile, param);
   }
-  else if ((XI_TILE3D_GET_DIM1(inTile) == 8) && \
+  else if ((XI_TILE3D_GET_DIM1(inTile) == (XCHAL_IVPN_SIMD_WIDTH/4)) && \
            (XI_TILE3D_GET_DIM1_PITCH(inTile) == XI_TILE3D_GET_DIM1(inTile)))
   {
     depthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH_FOLD4(inTile, coeffTile, biasArray, outScaleArray, outShiftArray, outTile, param);
   }
-  else if((XI_TILE3D_GET_DIM1_PITCH(inTile) <= 32) && \
-          (XI_TILE3D_GET_DIM1_PITCH(inTile) == XI_TILE3D_GET_DIM1(inTile)))
+  else if ((XI_TILE3D_GET_DIM1_PITCH(inTile) <= XCHAL_IVPN_SIMD_WIDTH) && \
+           (XI_TILE3D_GET_DIM1_PITCH(inTile) == XI_TILE3D_GET_DIM1(inTile)))
   {
     depthwiseConvolveAVQ2D_S_3x3_S8Ca2_MOD_DWH_FOLD(inTile, coeffTile, biasArray, outScaleArray, outShiftArray, outTile, param);
   }
@@ -3757,6 +3803,7 @@ static void depthwiseMultiplierConvolvedAVQ3D_S8_DWH_DM_LTE32(const xi_pTile3D i
                                                               xi_pTile3D outTile,
                                                               const xi_cnna_depthwiseDilatedConv_params *param)
 {
+//printf("Func=%s\n",__FUNCTION__);
   /* Get Tile Parameters */
   int32_t inDepth      = XI_TILE3D_GET_DIM1(inTile);
   int32_t inPitch1     = XI_TILE3D_GET_DIM1_PITCH(inTile);
@@ -3973,6 +4020,7 @@ static void depthwiseMultiplierConvolvedAVQ3D_S8_DWH_DM_LTE32(const xi_pTile3D i
   IVP_SCATTERW();
 }
 
+
 XI_ERR_TYPE xiDepthwiseMultiplierConvolvedAVQ3D_S8_DWH(const xi_pTile3D inTile,
                                                        const xi_pTile3D coeffTile,
                                                        const xi_pArray biasArray,
@@ -3981,6 +4029,7 @@ XI_ERR_TYPE xiDepthwiseMultiplierConvolvedAVQ3D_S8_DWH(const xi_pTile3D inTile,
                                                        xi_pTile3D outTile,
                                                        const xi_cnna_depthwiseDilatedConv_params *param)
 {
+//	printf("Func=%s\n",__FUNCTION__);
   XI_ERROR_CHECKS()
   {
     XI_CHECK_TILE3D_S8(inTile);
@@ -4144,6 +4193,7 @@ XI_ERR_TYPE xiDepthwiseMultiplierConvolvedAVQ3D_S8_DWH(const xi_pTile3D inTile,
   /*no: of folds x strideW x inpitch1 + depth multiplier - 1 should be with in gather limit */
   /*no:of folds x outpitch1  + + depth multiplier - 1 should be with in scatter limits */
   int32_t depthMultiplier = XI_CNNA_DEPTHWISE_DILATED_CONV_GET_DEPTH_MULTIPLIER(param);
+#if (XCHAL_VISION_SIMD16 ==32)
   if ((depthMultiplier == XCHAL_IVPN_SIMD_WIDTH || depthMultiplier == XCHAL_IVPN_SIMD_WIDTH >> 1 || depthMultiplier == XCHAL_IVPN_SIMD_WIDTH >> 2 || \
     depthMultiplier == XCHAL_IVPN_SIMD_WIDTH >> 4 || depthMultiplier == XCHAL_IVPN_SIMD_WIDTH >> 8) && \
     (((XCHAL_IVPN_SIMD_WIDTH / depthMultiplier - 1)  * XI_TILE3D_GET_DIM1_PITCH(inTile) * XI_CNNA_DEPTHWISE_DILATED_CONV_GET_STRIDEX(param)  \
@@ -4155,7 +4205,7 @@ XI_ERR_TYPE xiDepthwiseMultiplierConvolvedAVQ3D_S8_DWH(const xi_pTile3D inTile,
       scaleArray, shiftArray, outTile, param);
     return(XI_ERR_OK);
   }
-
+#endif
   /* Get Tile Parameters */
   int32_t inDepth      = XI_TILE3D_GET_DIM1(inTile);
   int32_t inPitch1     = XI_TILE3D_GET_DIM1_PITCH(inTile);
@@ -4192,17 +4242,26 @@ XI_ERR_TYPE xiDepthwiseMultiplierConvolvedAVQ3D_S8_DWH(const xi_pTile3D inTile,
   const int16_t maxLim = enableReLu ? reluMax : SCHAR_MAX;
 
   /* Input and output data pointers */
-  int8_t *restrict pInData11;
-  int8_t *restrict pInData12;
-  int8_t *restrict pInData21;
-  int8_t *restrict pInData22;
-  xb_vec2Nx8 *restrict pdvecOutData;
-  xb_vec2Nx8 *restrict pdvecFilter;
-  xb_vec2Nx8 *restrict pdvecOutShift;
-  xb_vecN_2x32v *restrict phvecOutScale1;
-  xb_vecN_2x32v *restrict phvecOutScale2;
-  xb_vecN_2x32v *restrict phvecBias1;
-  xb_vecN_2x32v *restrict phvecBias2;
+  int8_t *__restrict pInData11;
+  int8_t *__restrict pInData12;
+  int8_t *__restrict pInData21;
+  int8_t *__restrict pInData22;
+
+#ifdef  IVP_DMULQA2N8XR8
+  int8_t *__restrict pInData13;
+  int8_t *__restrict pInData14;
+  int8_t *__restrict pInData23;
+  int8_t *__restrict pInData24;
+  xb_vec2Nx8 dvecOut5, dvecOut6, dvecOut7, dvecOut8;
+#endif
+
+  xb_vec2Nx8 *__restrict pdvecOutData;
+  xb_vec2Nx8 *__restrict pdvecFilter;
+  xb_vec2Nx8 *__restrict pdvecOutShift;
+  xb_vecN_2x32v *__restrict phvecOutScale1;
+  xb_vecN_2x32v *__restrict phvecOutScale2;
+  xb_vecN_2x32v *__restrict phvecBias1;
+  xb_vecN_2x32v *__restrict phvecBias2;
   xb_vec2Nx8 dvecOut1, dvecOut2, dvecOut3, dvecOut4;
   valign vaOutData = IVP_ZALIGN();
 
@@ -4229,6 +4288,7 @@ XI_ERR_TYPE xiDepthwiseMultiplierConvolvedAVQ3D_S8_DWH(const xi_pTile3D inTile,
   }
   pInput = &pInput[-(topEdge * inPitch2 + leftEdge * inPitch1)];
 
+  xb_vec2Nx8 dvecInOffset = (xb_vec2Nx8)inputOffset;
   int32_t vectorizationWidth = (2 * XCHAL_IVPN_SIMD_WIDTH);
 
   /* Vectorization is along channels. Output width and output height are unrolled    */
@@ -4243,10 +4303,18 @@ XI_ERR_TYPE xiDepthwiseMultiplierConvolvedAVQ3D_S8_DWH(const xi_pTile3D inTile,
   {
     int32_t enable2Row = XT_SALT(outY, outHeight - 1);
 
-    for (int32_t outX = 0; outX < outWidth; outX += 2)  /* along output Width */
+#ifdef  IVP_DMULQA2N8XR8
+    for (int32_t outX = 0; outX < outWidth; outX += 4)  /* along output Width */
+#else
+   	for (int32_t outX = 0; outX < outWidth; outX += 2)  /* along output Width */
+#endif
     {
       int32_t enable2Col = XT_SALT(outX, outWidth - 1);
+      int32_t enable2Col1 = XT_SALT(outX, outWidth - 2);
+      int32_t enable2Col2 = XT_SALT(outX, outWidth - 3);
       int32_t enable2RowCol = enable2Col * enable2Row;
+      int32_t enable2RowCol1 = enable2Col1 * enable2Row;
+      int32_t enable2RowCol2 = enable2Col2 * enable2Row;
       for (int32_t ic = 0; ic < inDepth; ic++) /* Input depth index */
       {
         /* Loop index */
@@ -4258,10 +4326,10 @@ XI_ERR_TYPE xiDepthwiseMultiplierConvolvedAVQ3D_S8_DWH(const xi_pTile3D inTile,
           int32_t remainingOutCh = XT_MIN(vectorizationWidth, depthMultiplier - m);
           int32_t remBiasLoad = (remainingOutCh > XCHAL_IVPN_SIMD_WIDTH) ? 1 : 0;
 
-          int32_t remCh1 = XT_MIN(((depthMultiplier - m) << 2), XCHAL_IVPN_SIMD_WIDTH * 2);
-          int32_t remCh2 = XT_MIN((((depthMultiplier - m) - (XCHAL_IVPN_SIMD_WIDTH >> 1)) << 2), XCHAL_IVPN_SIMD_WIDTH * 2);
-          int32_t remCh3 = XT_MIN((((depthMultiplier - m) - XCHAL_IVPN_SIMD_WIDTH) << 2), XCHAL_IVPN_SIMD_WIDTH * 2);
-          int32_t remCh4 = XT_MIN((((depthMultiplier - m) - ((XCHAL_IVPN_SIMD_WIDTH * 3 ) >> 1)) << 2), XCHAL_IVPN_SIMD_WIDTH * 2);
+          int32_t remCh1 = XT_MIN(((depthMultiplier - m) << 2), (2 * XCHAL_IVPN_SIMD_WIDTH));
+          int32_t remCh2 = XT_MIN((((depthMultiplier - m) - (XCHAL_IVPN_SIMD_WIDTH/2)) << 2), (2 * XCHAL_IVPN_SIMD_WIDTH));
+          int32_t remCh3 = XT_MIN((((depthMultiplier - m) - XCHAL_IVPN_SIMD_WIDTH) << 2), (2 * XCHAL_IVPN_SIMD_WIDTH));
+          int32_t remCh4 = XT_MIN((((depthMultiplier - m) - (XCHAL_IVPN_SIMD_WIDTH + (XCHAL_IVPN_SIMD_WIDTH/2))) << 2), (2 * XCHAL_IVPN_SIMD_WIDTH));
 
           /* Load OutScale values */
           xb_vecN_2x32v hvecScale1, hvecScale2, hvecScale3, hvecScale4;
@@ -4302,10 +4370,14 @@ XI_ERR_TYPE xiDepthwiseMultiplierConvolvedAVQ3D_S8_DWH(const xi_pTile3D inTile,
           xb_vecN_2x32v hvecLeftShift4 = IVP_MOVN_2X32_FROMNX16(vecLeftShiftHH);
           /* Initialize accumulators with bias values */
           xb_vec2Nx24 daccSum1, daccSum2, daccSum3, daccSum4;
+#ifdef  IVP_DMULQA2N8XR8
+          xb_vec2Nx24 daccSum5, daccSum6, daccSum7, daccSum8;
+#endif
           phvecBias1 = (xb_vecN_2x32v*)(pBias + arrayOffset + m);
           phvecBias2 = (xb_vecN_2x32v*)(pBias + arrayOffset + m + XCHAL_IVPN_SIMD_WIDTH * remBiasLoad);
           ACC_INIT_BIAS(phvecBias1, phvecBias2, daccSum1, daccSum2, daccSum3, daccSum4, remCh1, \
             remCh2, remCh3, remCh4);
+
           /* Input Data Pointers */
           int8_t *pData = pInput + ic + outX * strideWidth * inPitch1 + outY * strideHeight * inPitch2;
           /* Pointers for Input Data Loads */
@@ -4314,15 +4386,23 @@ XI_ERR_TYPE xiDepthwiseMultiplierConvolvedAVQ3D_S8_DWH(const xi_pTile3D inTile,
           pInData21 = (int8_t *)(pData + strideHeight * inPitch2 * enable2Row);
           pInData22 = (int8_t *)(pData + (strideWidth * inPitch1 + strideHeight * inPitch2) * enable2RowCol);
 
+#ifdef  IVP_DMULQA2N8XR8
+          /* reassign values */
+          daccSum5 = daccSum1;daccSum6 = daccSum2;
+          daccSum7 = daccSum3;daccSum8 = daccSum4;
+          pInData13 = (int8_t *)(pData + 2*strideWidth * inPitch1 * enable2Col1);
+          pInData14 = (int8_t *)(pData + 3*strideWidth * inPitch1 * enable2Col2);
+		  pInData23 = (int8_t *)(pData + (2*strideWidth * inPitch1 + strideHeight * inPitch2) * enable2RowCol1);
+		  pInData24 = (int8_t *)(pData + (3*strideWidth * inPitch1 + strideHeight * inPitch2) * enable2RowCol2);
+#endif
+
           /* Pointer for Coefficient Load */
           int8_t *pCoeff = pFilter + arrayOffset + m;
           pdvecFilter = (xb_vec2Nx8 *)(pCoeff);
           int32_t i = 0;
-          int32_t zeroPointIn = ((int32_t)inputOffset << 16) | ((int32_t)inputOffset & 0XFFFF);
           /* Pointer for Output Load */
           int8_t* pOut = pOutData + arrayOffset + m + outX * outPitch1 + outY * outPitch2;
-          int32_t k;
-          for (k = 0; k < (filterHeight * filterWidth) -1; k+=2, i++) // along kernelWidth*kernelHeight
+          for (int32_t k = 0; k < (filterHeight * filterWidth); k++, i++) // along kernelWidth*kernelHeight
           {
             int32_t inAddrOffset = IVP_EXTRVRN_2X32(hvecInAddrOffInit, 4 * i);
             /* After every filterWidth no: of iterations, the offset, should start from
@@ -4330,8 +4410,11 @@ XI_ERR_TYPE xiDepthwiseMultiplierConvolvedAVQ3D_S8_DWH(const xi_pTile3D inTile,
             /* Making i = -1 when k = multiple of filterWidth, so that i++ will give i = 0
                for next iteration */
             i |= ((filterWidth - 2) - i) >> 31;
+
             xb_vec2Nx8 dvecFilter, dvecInData11, dvecInData12, dvecInData21, dvecInData22;
-            xb_vec2Nx8 dvecFilterA, dvecInData11A, dvecInData12A, dvecInData21A, dvecInData22A;
+#ifdef  IVP_DMULQA2N8XR8
+            xb_vec2Nx8 dvecInData13, dvecInData14, dvecInData23, dvecInData24;
+#endif
             /* Load coefficient value*/
             valign valFilter = IVP_LA2NX8_PP(pdvecFilter);
             IVP_LA2NX8_XP(dvecFilter, valFilter, pdvecFilter, filterPitch1);
@@ -4341,64 +4424,57 @@ XI_ERR_TYPE xiDepthwiseMultiplierConvolvedAVQ3D_S8_DWH(const xi_pTile3D inTile,
             IVP_LSR2NX8_XP(dvecInData21, pInData21, inAddrOffset);
             IVP_LSR2NX8_XP(dvecInData22, pInData22, inAddrOffset);
 
-            i++;
-            inAddrOffset = IVP_EXTRVRN_2X32(hvecInAddrOffInit, 4 * i);
-            /* After every filterWidth no: of iterations, the offset, should start from
-            0th position in the offset vector*/
-            /* Making i = -1 when k = multiple of filterWidth, so that i++ will give i = 0
-            for next iteration */
-            i |= ((filterWidth - 2) - i) >> 31;
-            /* Load coefficient value*/
-            valFilter = IVP_LA2NX8_PP(pdvecFilter);
-            IVP_LA2NX8_XP(dvecFilterA, valFilter, pdvecFilter, filterPitch1);
-            /* Load Input data */
-            IVP_LSR2NX8_XP(dvecInData11A, pInData11, inAddrOffset);
-            IVP_LSR2NX8_XP(dvecInData12A, pInData12, inAddrOffset);
-            IVP_LSR2NX8_XP(dvecInData21A, pInData21, inAddrOffset);
-            IVP_LSR2NX8_XP(dvecInData22A, pInData22, inAddrOffset);
+#ifdef  IVP_DMULQA2N8XR8
+            IVP_LSR2NX8_XP(dvecInData13, pInData13, inAddrOffset);
+			IVP_LSR2NX8_XP(dvecInData14, pInData14, inAddrOffset);
+			IVP_LSR2NX8_XP(dvecInData23, pInData23, inAddrOffset);
+			IVP_LSR2NX8_XP(dvecInData24, pInData24, inAddrOffset);
+#endif
 
-            IVP_MULPA2NX8(daccSum1, dvecInData11, dvecFilter, dvecInData11A, dvecFilterA);
-            IVP_MULPA2NX8(daccSum2, dvecInData12, dvecFilter, dvecInData12A, dvecFilterA);
-            IVP_MULPA2NX8(daccSum3, dvecInData21, dvecFilter, dvecInData21A, dvecFilterA);
-            IVP_MULPA2NX8(daccSum4, dvecInData22, dvecFilter, dvecInData22A, dvecFilterA);
-            IVP_MULPA2N8XR16(daccSum1, dvecFilter, dvecFilterA, zeroPointIn);
-            IVP_MULPA2N8XR16(daccSum2, dvecFilter, dvecFilterA, zeroPointIn);
-            IVP_MULPA2N8XR16(daccSum3, dvecFilter, dvecFilterA, zeroPointIn);
-            IVP_MULPA2N8XR16(daccSum4, dvecFilter, dvecFilterA, zeroPointIn);
-          }
-          if (k < (filterHeight * filterWidth))
-          {
-            xb_vec2Nx8 dvecFilter, dvecInData11, dvecInData12, dvecInData21, dvecInData22;
-            /* Load coefficient value*/
-            valign valFilter = IVP_LA2NX8_PP(pdvecFilter);
-            IVP_LA2NX8_XP(dvecFilter, valFilter, pdvecFilter, filterPitch1);
-            /* Load Input data */
-            IVP_LSR2NX8_XP(dvecInData11, pInData11, 1);
-            IVP_LSR2NX8_XP(dvecInData12, pInData12, 1);
-            IVP_LSR2NX8_XP(dvecInData21, pInData21, 1);
-            IVP_LSR2NX8_XP(dvecInData22, pInData22, 1);
+            IVP_MULPA2NX8(daccSum1, dvecInData11, dvecFilter, dvecInOffset, dvecFilter);
+            IVP_MULPA2NX8(daccSum2, dvecInData12, dvecFilter, dvecInOffset, dvecFilter);
+            IVP_MULPA2NX8(daccSum3, dvecInData21, dvecFilter, dvecInOffset, dvecFilter);
+            IVP_MULPA2NX8(daccSum4, dvecInData22, dvecFilter, dvecInOffset, dvecFilter);
 
-            IVP_MULA2NX8(daccSum1, dvecInData11, dvecFilter);
-            IVP_MULA2NX8(daccSum2, dvecInData12, dvecFilter);
-            IVP_MULA2NX8(daccSum3, dvecInData21, dvecFilter);
-            IVP_MULA2NX8(daccSum4, dvecInData22, dvecFilter);
-            IVP_MULA2N8XR16(daccSum1, dvecFilter, zeroPointIn);
-            IVP_MULA2N8XR16(daccSum2, dvecFilter, zeroPointIn);
-            IVP_MULA2N8XR16(daccSum3, dvecFilter, zeroPointIn);
-            IVP_MULA2N8XR16(daccSum4, dvecFilter, zeroPointIn);
+#ifdef  IVP_DMULQA2N8XR8
+            IVP_MULPA2NX8(daccSum5, dvecInData13, dvecFilter, dvecInOffset, dvecFilter);
+			IVP_MULPA2NX8(daccSum6, dvecInData14, dvecFilter, dvecInOffset, dvecFilter);
+			IVP_MULPA2NX8(daccSum7, dvecInData23, dvecFilter, dvecInOffset, dvecFilter);
+			IVP_MULPA2NX8(daccSum8, dvecInData24, dvecFilter, dvecInOffset, dvecFilter);
+#endif
+
           }
           xb_vecNx16 vecOut11, vecOut12, vecOut21, vecOut22;
           xb_vecNx16 vecOut31, vecOut32, vecOut41, vecOut42;
+
+#ifdef  IVP_DMULQA2N8XR8
+          xb_vecNx16 vecOut51, vecOut52, vecOut61, vecOut62;
+          xb_vecNx16 vecOut71, vecOut72, vecOut81, vecOut82;
+#endif
           DEPTHWISE_DILATED_PACK_SCALE_AND_ROUNDING_VQ(daccSum1, vecOut11, vecOut12);
           DEPTHWISE_DILATED_PACK_SCALE_AND_ROUNDING_VQ(daccSum2, vecOut21, vecOut22);
           DEPTHWISE_DILATED_PACK_SCALE_AND_ROUNDING_VQ(daccSum3, vecOut31, vecOut32);
           DEPTHWISE_DILATED_PACK_SCALE_AND_ROUNDING_VQ(daccSum4, vecOut41, vecOut42);
 
+#ifdef  IVP_DMULQA2N8XR8
+          DEPTHWISE_DILATED_PACK_SCALE_AND_ROUNDING_VQ(daccSum5, vecOut51, vecOut52);
+		  DEPTHWISE_DILATED_PACK_SCALE_AND_ROUNDING_VQ(daccSum6, vecOut61, vecOut62);
+		  DEPTHWISE_DILATED_PACK_SCALE_AND_ROUNDING_VQ(daccSum7, vecOut71, vecOut72);
+		  DEPTHWISE_DILATED_PACK_SCALE_AND_ROUNDING_VQ(daccSum8, vecOut81, vecOut82);
+#endif
           /* Store output */
           dvecOut1 = IVP_SEL2NX8I(IVP_MOV2NX8_FROMNX16(vecOut12), IVP_MOV2NX8_FROMNX16(vecOut11), IVP_SELI_8B_EXTRACT_1_OF_2_OFF_0);
           dvecOut2 = IVP_SEL2NX8I(IVP_MOV2NX8_FROMNX16(vecOut22), IVP_MOV2NX8_FROMNX16(vecOut21), IVP_SELI_8B_EXTRACT_1_OF_2_OFF_0);
           dvecOut3 = IVP_SEL2NX8I(IVP_MOV2NX8_FROMNX16(vecOut32), IVP_MOV2NX8_FROMNX16(vecOut31), IVP_SELI_8B_EXTRACT_1_OF_2_OFF_0);
           dvecOut4 = IVP_SEL2NX8I(IVP_MOV2NX8_FROMNX16(vecOut42), IVP_MOV2NX8_FROMNX16(vecOut41), IVP_SELI_8B_EXTRACT_1_OF_2_OFF_0);
+
+#ifdef  IVP_DMULQA2N8XR8
+          /* Store output */
+          dvecOut5 = IVP_SEL2NX8I(IVP_MOV2NX8_FROMNX16(vecOut52), IVP_MOV2NX8_FROMNX16(vecOut51), IVP_SELI_8B_EXTRACT_1_OF_2_OFF_0);
+          dvecOut6 = IVP_SEL2NX8I(IVP_MOV2NX8_FROMNX16(vecOut62), IVP_MOV2NX8_FROMNX16(vecOut61), IVP_SELI_8B_EXTRACT_1_OF_2_OFF_0);
+          dvecOut7 = IVP_SEL2NX8I(IVP_MOV2NX8_FROMNX16(vecOut72), IVP_MOV2NX8_FROMNX16(vecOut71), IVP_SELI_8B_EXTRACT_1_OF_2_OFF_0);
+          dvecOut8 = IVP_SEL2NX8I(IVP_MOV2NX8_FROMNX16(vecOut82), IVP_MOV2NX8_FROMNX16(vecOut81), IVP_SELI_8B_EXTRACT_1_OF_2_OFF_0);
+#endif
 
           pdvecOutData = (xb_vec2Nx8 *)(pOut);
           IVP_SAV2NX8_XP(dvecOut1, vaOutData, pdvecOutData, remainingOutCh);
@@ -4415,6 +4491,30 @@ XI_ERR_TYPE xiDepthwiseMultiplierConvolvedAVQ3D_S8_DWH(const xi_pTile3D inTile,
           pdvecOutData = (xb_vec2Nx8 *)(pOut + outPitch1  * enable2Col + outPitch2 * enable2Row);
           IVP_SAV2NX8_XP(dvecOut4, vaOutData, pdvecOutData, remainingOutCh * enable2Col * enable2Row);
           IVP_SAPOS2NX8_FP(vaOutData, pdvecOutData);
+
+#ifdef  IVP_DMULQA2N8XR8
+
+          //h=0,w=2
+          pdvecOutData = (xb_vec2Nx8 *)(pOut + 2*outPitch1 * enable2Col);
+          IVP_SAV2NX8_XP(dvecOut5, vaOutData, pdvecOutData, remainingOutCh * enable2Col1);
+          IVP_SAPOS2NX8_FP(vaOutData, pdvecOutData);
+
+          //h=0,w=3
+          pdvecOutData = (xb_vec2Nx8 *)(pOut + 3*outPitch1 * enable2Col);
+          IVP_SAV2NX8_XP(dvecOut6, vaOutData, pdvecOutData, remainingOutCh * enable2Col2);
+          IVP_SAPOS2NX8_FP(vaOutData, pdvecOutData);
+
+          //h=1,w=2
+          pdvecOutData = (xb_vec2Nx8 *)(pOut + 2*outPitch1  * enable2Col + outPitch2 * enable2Row);
+          IVP_SAV2NX8_XP(dvecOut7, vaOutData, pdvecOutData, remainingOutCh * enable2Col1 * enable2Row);
+          IVP_SAPOS2NX8_FP(vaOutData, pdvecOutData);
+
+          //h=1,w=3
+          pdvecOutData = (xb_vec2Nx8 *)(pOut + 3*outPitch1  * enable2Col + outPitch2 * enable2Row);
+          IVP_SAV2NX8_XP(dvecOut8, vaOutData, pdvecOutData, remainingOutCh * enable2Col2 * enable2Row);
+          IVP_SAPOS2NX8_FP(vaOutData, pdvecOutData);
+#endif
+
         }
       }
     }

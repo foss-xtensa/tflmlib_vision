@@ -42,7 +42,7 @@ namespace tflite {
 // code. In the case, the maximum value of the two fields will be the value of
 // the `builtin_code` as the right value.
 
-BuiltinOperator GetBuiltinCode(const OperatorCode *op_code) {
+BuiltinOperator GetBuiltinCode(const OperatorCode* op_code) {
   // Caller should guarantee that the given argument value is not a nullptr.
   TFLITE_DCHECK(op_code != nullptr);
 
@@ -51,7 +51,7 @@ BuiltinOperator GetBuiltinCode(const OperatorCode *op_code) {
       static_cast<BuiltinOperator>(op_code->deprecated_builtin_code()));
 }
 
-BuiltinOperator GetBuiltinCode(const OperatorCodeT *op_code) {
+BuiltinOperator GetBuiltinCode(const OperatorCodeT* op_code) {
   // Caller should guarantee that the given argument value is not a nullptr.
   TFLITE_DCHECK(op_code != nullptr);
 

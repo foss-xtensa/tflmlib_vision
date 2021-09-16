@@ -34,7 +34,7 @@ int32_t InitXtensaContext(void)
         totalCores = 1;
         myCore = 0;
         // init the mem manager
-        XI_ERR_TYPE status = cnnrt_get_local_mem_info(12*1024, &mem_info);
+        XI_ERR_TYPE status = cnnrt_get_local_mem_info(STACK_SIZE, &mem_info);
         status |= cnnrt_init(32, &mem_info);
         if (!status)
             initDone = 1;

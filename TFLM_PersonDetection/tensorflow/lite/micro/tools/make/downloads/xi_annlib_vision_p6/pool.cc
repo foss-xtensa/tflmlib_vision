@@ -24,7 +24,6 @@
 #include "xi_core_api.h"
 #include "cnnrt.h"
 #include "utils.h"
-#include <string> //TODO
 
 uint32_t xiPoolGetMemReqd_Context(uint32_t *pContextSize)
 {
@@ -104,45 +103,55 @@ bool poolSetup(pool_params_t* params, const size_t largeBank, const size_t small
     return false;
 }
 
-uint32_t xiAverageEvalQuantized(uint8_t *pContext, uint32_t contextSize, int8_t *pInput, uint32_t inputSize, int8_t *pOutput, uint32_t outputSize,
-	    uint32_t inputN, uint32_t inputH, uint32_t inputW, uint32_t inputD, uint32_t outputN, uint32_t outputH, uint32_t outputW, uint32_t outputD,
-	    uint32_t filterWidth, uint32_t filterHeight, uint32_t strideWidth, uint32_t act_min, uint32_t act_max)
+uint32_t xiAveragePoolSetContext(uint8_t* pContext, uint32_t contextSize, const uint32_t inputD, const uint32_t inputW, const uint32_t inputH, const uint32_t inputN,
+  const uint32_t outputD, const uint32_t outputW, const uint32_t outputH, const uint32_t outputN, const uint32_t filterW, const uint32_t filterH,
+  const uint32_t strideWidth,const uint32_t pad_height, const uint32_t pad_width, const uint32_t act_min,const uint32_t act_max)
+{
+  if (!pContext || (contextSize < sizeof(pool_params_t)))
+    return 1;
+  pool_params_t* pPoolParams = (pool_params_t*)pContext;
+
+  memset(pPoolParams, 0, sizeof(pool_params_t));
+  pPoolParams->structSize = sizeof(pool_params_t);
+  pPoolParams->input = { inputD, inputW, inputH };
+  pPoolParams->output = { outputD, outputW, outputH };
+  pPoolParams->batch = inputN;
+  pPoolParams->kernelW = filterW;
+  pPoolParams->kernelH = filterH;
+
+  pPoolParams->stride = strideWidth;
+  pPoolParams->offsetX = 1;
+  pPoolParams->offsetY = 1;
+  pPoolParams->type = AVG_POOLING;
+  pPoolParams->qFlag = 0;
+  pPoolParams->multiplierOut = 0x40000000;
+  pPoolParams->shiftOut = 0;
+  pPoolParams->left_shift = 1;
+  pPoolParams->zeroPtInput = 0;
+  pPoolParams->zeroPtOutput = 0;
+  pPoolParams->reluMin = act_min;
+  pPoolParams->reluMax = act_max;
+  pPoolParams->quantTensorSign.dataType = XI_S8;
+
+  local_mem_info_t* mem_info = getMeminfoContext();
+  size_t bank0Size = mem_info->bank[0].size;
+  size_t bank1Size = mem_info->bank[1].size;
+  pPoolParams->largeInd = (bank0Size >= bank1Size) ? 0 : 1;
+
+  uint32_t largeBank = std::max(bank0Size, bank1Size);
+  uint32_t smallBank = std::min(bank0Size, bank1Size);
+  poolSetup(pPoolParams, largeBank, smallBank); // todo : pass actual available memory
+
+  return 0;
+}
+
+uint32_t xiAverageEvalQuantized(uint8_t *pContext, uint32_t contextSize, int8_t *pInput, uint32_t inputSize, int8_t *pOutput, uint32_t outputSize)
 {
 	if ( !pContext || (contextSize < sizeof(pool_params_t)) )
 		return 1;
 
 	pool_params_t *pPoolParams = (pool_params_t *)pContext;
 	uint32_t status = 0;
-    memset(pPoolParams, 0, sizeof(pool_params_t));
-    pPoolParams->structSize = sizeof(pool_params_t);
-    pPoolParams->input = { inputD, inputW, inputH };
-    pPoolParams->output = { outputD, outputW, outputH };
-    pPoolParams->batch = inputN;
-    pPoolParams->kernelW = filterWidth;
-    pPoolParams->kernelH = filterHeight;
-
-    pPoolParams->stride = strideWidth;
-    pPoolParams->offsetX = 1;
-    pPoolParams->offsetY = 1;
-    pPoolParams->type = AVG_POOLING;
-    pPoolParams->qFlag = 0;
-    pPoolParams->multiplierOut = 0x40000000;
-    pPoolParams->shiftOut = 0;
-    pPoolParams->left_shift = 1;
-    pPoolParams->zeroPtInput = 0;
-    pPoolParams->zeroPtOutput = 0;
-    pPoolParams->reluMin = act_min;
-    pPoolParams->reluMax = act_max;
-    pPoolParams->quantTensorSign.dataType = XI_S8;
-
-    local_mem_info_t *mem_info = getMeminfoContext();
-    size_t bank0Size = mem_info->bank[0].size;
-    size_t bank1Size = mem_info->bank[1].size;
-    pPoolParams->largeInd = (bank0Size >= bank1Size) ? 0 : 1;
-
-    uint32_t largeBank  = std::max(bank0Size, bank1Size);
-    uint32_t smallBank  = std::min(bank0Size, bank1Size);
-    poolSetup(pPoolParams, largeBank, smallBank); // todo : pass actual available memory
 
     struct XtensaOperationArgsIn inputs = {
 		1,
@@ -154,7 +163,6 @@ uint32_t xiAverageEvalQuantized(uint8_t *pContext, uint32_t contextSize, int8_t 
 		{pOutput,},
 		{outputSize, }
 	};
-
 #if FLK_CYCLES
   int start = XT_RSR_CCOUNT();
 #endif
@@ -165,11 +173,14 @@ uint32_t xiAverageEvalQuantized(uint8_t *pContext, uint32_t contextSize, int8_t 
 #endif
 #if FLK_CYCLES
     int stop = XT_RSR_CCOUNT();
-    printf("Pooling=%d\n",stop-start);
+    printf("Pooling (including iDMA) =%d\n",stop-start);
 #endif
 
 #if !IS_MULTICHANNEL_DMA
     dma_barrier();
+#endif
+#if KERNEL_INFO
+	printf("pooling:iW=%d,iH=%d,iD=%d \t kw=%d,kh=%d \t oW=%d,oH=%d,oD=%d \n", pPoolParams->input.W, pPoolParams->input.H, pPoolParams->input.D, pPoolParams->kernelW, pPoolParams->kernelH, pPoolParams->output.W, pPoolParams->output.H, pPoolParams->output.D );
 #endif
     return status;
 }

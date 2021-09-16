@@ -42,7 +42,7 @@ inline void ElementWise(
   CheckArithmeticParams(params);
   for (int i = 0; i < size; ++i) {
     output_data[i] = binary_func(input1_data[i], input2_data[i], params);
-}
+  }
 }
 
 inline void BroadcastBinaryFunction4DSlow(
@@ -88,22 +88,22 @@ inline int8_t AddFunc(int8_t x, int8_t y, const ArithmeticParams& params) {
   const int32_t input2_val = params.input2_offset + y;
   const int32_t shifted_input1_val = input1_val * (1 << params.left_shift);
   const int32_t shifted_input2_val = input2_val * (1 << params.left_shift);
-          const int32_t scaled_input1_val =
-              MultiplyByQuantizedMultiplierSmallerThanOneExp(
+  const int32_t scaled_input1_val =
+      MultiplyByQuantizedMultiplierSmallerThanOneExp(
           shifted_input1_val, params.input1_multiplier, params.input1_shift);
-          const int32_t scaled_input2_val =
-              MultiplyByQuantizedMultiplierSmallerThanOneExp(
+  const int32_t scaled_input2_val =
+      MultiplyByQuantizedMultiplierSmallerThanOneExp(
           shifted_input2_val, params.input2_multiplier, params.input2_shift);
-          const int32_t raw_sum = scaled_input1_val + scaled_input2_val;
-          const int32_t raw_output =
-              MultiplyByQuantizedMultiplierSmallerThanOneExp(
-                  raw_sum, params.output_multiplier, params.output_shift) +
-              params.output_offset;
-          const int32_t clamped_output =
-              std::min(params.quantized_activation_max,
-                       std::max(params.quantized_activation_min, raw_output));
+  const int32_t raw_sum = scaled_input1_val + scaled_input2_val;
+  const int32_t raw_output =
+      MultiplyByQuantizedMultiplierSmallerThanOneExp(
+          raw_sum, params.output_multiplier, params.output_shift) +
+      params.output_offset;
+  const int32_t clamped_output =
+      std::min(params.quantized_activation_max,
+               std::max(params.quantized_activation_min, raw_output));
   return static_cast<int8_t>(clamped_output);
-      }
+}
 
 // Element-wise add that can often be used for inner loop of broadcast add as
 // well as the non-broadcast add.
@@ -112,7 +112,7 @@ inline void AddElementwise(int size, const ArithmeticParams& params,
                            int8_t* output_data) {
   ElementWise(size, params, input1_data, input2_data, output_data,
               CheckArithmeticParams, AddFunc);
-    }
+}
 
 inline void Add(const ArithmeticParams& params,
                 const RuntimeShape& input1_shape, const int8_t* input1_data,
@@ -124,7 +124,7 @@ inline void Add(const ArithmeticParams& params,
       MatchingElementsSize(input1_shape, input2_shape, output_shape);
 
   AddElementwise(flat_size, params, input1_data, input2_data, output_data);
-  }
+}
 
 inline void BroadcastAdd4DSlow(const ArithmeticParams& params,
                                const RuntimeShape& input1_shape,

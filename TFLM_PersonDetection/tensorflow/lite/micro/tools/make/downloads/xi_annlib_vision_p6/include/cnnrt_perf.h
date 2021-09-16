@@ -22,6 +22,7 @@
 #define _CNNRT_PERF_H_INCLUDED_
 
 #include <stdint.h>
+//#include "cnnrt_log.h"
 
 /* Don't measure time, disable all reports. */
 #define CNNRT_PERF_LEVEL_NONE     0
@@ -73,8 +74,9 @@ extern "C" {
 extern void _cnnrt_perf_print_exec_info_summary(uint32_t _compute_cycles, uint64_t frequency,  uint32_t batch, uint64_t _t_macs, uint32_t num_cores, uint32_t macs_per_cycle);
 
 extern void _cnnrt_perf_print_layer_info_header();
-extern void _cnnrt_perf_print_layer_info(const char *_t_name, uint64_t _t_cycles_layer, uint64_t _t_macs, uint32_t num_cores, uint32_t macs_per_cycle);
-extern void _cnnrt_perf_print_exec_info(uint64_t frequency,  uint32_t batch, uint64_t _t_macs, uint32_t num_cores, uint32_t macs_per_cycle);
+extern void _cnnrt_perf_print_mc_layer_info_header(int mycore);
+extern void _cnnrt_perf_print_layer_info(const char *_t_name, uint64_t LayerStart, uint64_t LayereEnd, uint64_t _t_cycles_layer, uint64_t _t_macs, uint32_t num_cores, uint32_t macs_per_cycle);
+extern void _cnnrt_perf_print_exec_info(uint64_t frequency,  uint32_t batch, uint64_t _t_macs, uint32_t num_cores,  uint32_t macs_per_cycle);
 
 /*
 
@@ -96,17 +98,34 @@ extern void _cnnrt_perf_print_exec_info(uint64_t frequency,  uint32_t batch, uin
 #    define INST_PROFILE_CLIENTS_ENABLE()   xt_iss_client_command ("all", "enable")
 #    define INST_PROFILE_CLIENTS_DISABLE()  xt_iss_client_command ("all", "disable")
 
-#    define INST_PROFILE_INIT()                 \
-    xt_iss_switch_mode (XT_ISS_FUNCTIONAL);     \
-    INST_PROFILE_CLIENTS_DISABLE();
+#if DISABLE_ISS_SWITCH
+    #define DISABLE_ISS_SWITCH_MODE  1
+#else 
+    #define DISABLE_ISS_SWITCH_MODE  0
+#endif
 
-#    define INST_PROFILE_BEGIN()                \
-    xt_iss_switch_mode(XT_ISS_CYCLE_ACCURATE);  \
-    INST_PROFILE_CLIENTS_ENABLE();
+#    define INST_PROFILE_INIT()                         \
+    if (cnnrt_is_master()) {                            \
+        if(!DISABLE_ISS_SWITCH_MODE) {                  \
+            xt_iss_switch_mode (XT_ISS_FUNCTIONAL);     \
+        }                                               \
+        INST_PROFILE_CLIENTS_DISABLE();                 \
+    }
 
-#    define INST_PROFILE_END()                  \
-    INST_PROFILE_CLIENTS_DISABLE();             \
-    xt_iss_switch_mode (XT_ISS_FUNCTIONAL);
+#    define INST_PROFILE_BEGIN()                            \
+    if (cnnrt_is_master()) {                                \
+        if(!DISABLE_ISS_SWITCH_MODE) {                      \
+            xt_iss_switch_mode(XT_ISS_CYCLE_ACCURATE);      \
+        }                                                   \
+        INST_PROFILE_CLIENTS_ENABLE();                      \
+    }
+#    define INST_PROFILE_END()                          \
+    if (cnnrt_is_master()) {                            \
+        INST_PROFILE_CLIENTS_DISABLE();                 \
+        if(!DISABLE_ISS_SWITCH_MODE) {                  \
+            xt_iss_switch_mode (XT_ISS_FUNCTIONAL);     \
+        }                                               \
+    }
 
 #    define INST_PROFILE_DUMP()                 \
     xt_iss_client_command("profile", "dump");   \
@@ -169,6 +188,21 @@ static inline uint32_t _time_stamp()
     clock_gettime(CLOCK_MONOTONIC, &_t);
     return (uint32_t)((uint64_t)_t.tv_nsec/1000 +_t.tv_sec*1000000UL);
 }
+#elif defined( _WIN32)
+static int clock_gettime(int, struct timespec* spec)
+{
+  return 0;
+}
+static inline uint32_t _time_stamp()
+{
+  //struct timespec _t;
+  //clock_gettime(1, &_t);
+  return 0;//(uint32_t)((uint64_t)_t.tv_nsec / 1000 + _t.tv_sec * 1000000UL);
+}
+#  define INST_PROFILE_INIT()
+#  define INST_PROFILE_BEGIN()
+#  define INST_PROFILE_END()
+#  define INST_PROFILE_DUMP()
 
 #  else
 #    error "implement _time_stamp()"
@@ -203,12 +237,14 @@ static inline uint32_t _time_stamp()
 
 
 /* Instrumentation macro for collecting network performance data. */
-#  define INST_COMPUTE_BEGIN(name)
-#  define INST_COMPUTE_END(name, macs, num_cores, macs_per_cycle)
+#  define INST_COMPUTE_BEGIN(name, myCore, ptr)
+#  define INST_COMPUTE_END(name, macs, num_cores, macs_per_cycle, myCore, ptr)
 
 /* Instrumentation macro for collecting per-layer performance data. */
 #  define INST_LAYER_BEGIN(index, name)
-#  define INST_LAYER_END(index, name, macs, num_cores, macs_per_cycle)
+#  define INST_LAYER_END(index, name, macs, num_cores, macs_per_cycle, myCore, ptr)
+#  define INSERT_DUMMY_LAYER(myCore,ptr)
+#  define RECORD_LAYER_OPTYPE(optype, ptr)
 
 /* Instrumentation macro for collecting kernel call performance data. */
 #  define INST_KERNEL_BEGIN()
@@ -223,34 +259,72 @@ static inline uint32_t _time_stamp()
 
 
 /* Instrumentation macro for collecting network performance data. */
-#  define INST_COMPUTE_BEGIN(name)                              \
+#  define INST_COMPUTE_BEGIN(name, myCore, ptr)                              \
     uint32_t _compute_cycles = 0;                               \
     if (cnnrt_is_master()) {                                    \
         INST_PROFILE_CLIENTS_DISABLE();                         \
-        printf ("RUNNING GRAPH%s...\n", INST_REFERENCE_STR);    \
+        printf ("RUNNING GRAPH%s...core = %d\n", INST_REFERENCE_STR, XT_RSR_PRID());    \
         _cnnrt_perf_idleWaitCycles = 0;                         \
         _cnnrt_perf_idmaMaxQueueSize = 0;                       \
         _cnnrt_perf_idmaQueueOverflow = 0;                      \
         _cnnrt_perf_totalKernelCycles = 0;                      \
         _cnnrt_perf_totalEdgeExtensionCycles = 0;               \
+        _cnnrt_perf_totalCycles = 0;                            \
         INST_PROFILE_CLIENTS_ENABLE();                          \
         _compute_cycles = _time_stamp();                        \
     }
 
-#  define INST_COMPUTE_END(name, macs, num_cores, macs_per_cycle)       \
+#  define INST_COMPUTE_END(name, macs, num_cores, macs_per_cycle, myCore, ptr)       \
     if (cnnrt_is_master()) {                                            \
         _compute_cycles = _time_stamp() - _compute_cycles;              \
         INST_PROFILE_CLIENTS_DISABLE();                                 \
-        _cnnrt_perf_print_exec_info_summary(_compute_cycles, DSP_FREQUENCY, BATCH_ADJUSTMENT, (macs), num_cores, macs_per_cycle); \
+        if (!ptr)                                                        \
+            _cnnrt_perf_print_exec_info_summary(_compute_cycles, DSP_FREQUENCY, BATCH_ADJUSTMENT, (macs), num_cores, macs_per_cycle); \
         INST_PROFILE_CLIENTS_ENABLE();                                  \
     }
 
 /* Instrumentation macro for collecting per-layer performance data. */
 #  define INST_LAYER_BEGIN(index, name) \
-    INST_XTSC_LAYER_START(index);
+  if (cnnrt_is_master()) {                                              \
+      INST_XTSC_LAYER_START(index);                                     \
+  }                                                                     \
+  {                                                                     \
+    uint32_t _t_cycles_layer = _time_stamp();                           \
 
-#  define INST_LAYER_END(index, name, macs, num_cores, macs_per_cycle) \
-    INST_XTSC_LAYER_END(index);
+
+#  define INST_LAYER_END(index, name, macs, num_cores, macs_per_cycle, myCore,ptr) \
+    if (cnnrt_is_master()) {                                            \
+        _cnnrt_wait_all();                                              \
+        if (ptr) {                                                      \
+            *(ptr+LAYER_START)=_t_cycles_layer;                         \
+            *(ptr+LAYER_END)=_time_stamp();                             \
+        }                                                               \
+        _t_cycles_layer = _time_stamp() - _t_cycles_layer;              \
+        INST_XTSC_LAYER_END(index);                                     \
+        _cnnrt_perf_totalCycles += _t_cycles_layer;                     \
+    }                                                                   \
+  }
+
+#define INSERT_DUMMY_LAYER(myCore,ptr) \
+    if (ptr && cnnrt_is_master()) {                                     \
+        unsigned long long _t_tmp_cyc = _time_stamp();                  \
+        *(ptr+LAYER_START)=_t_tmp_cyc;                              \
+        *(ptr+LAYER_END)=_t_tmp_cyc;                                \
+        _t_tmp_cyc = 0;                                                 \
+        _cnnrt_perf_totalCycles += _t_tmp_cyc;                          \
+        *(ptr+TOT_CYC) = _t_tmp_cyc;                                \
+        *(ptr+KERNEL_CYC) =  0;                                     \
+        *(ptr+EDGE_CYC) =  0;                                       \
+        *(ptr+IDLE_CYC) =   0;                                      \
+        *((double *)(ptr+MAC_PER_CYC)) = 0;                         \
+        *((double *)(ptr+MAC_PERCENT))= 0;                          \
+        *(ptr+TOT_MAC) = 0;                                         \
+        *(ptr+DMA_QUEUE) = 0;                                       \
+    }
+
+#  define RECORD_LAYER_OPTYPE(optype, ptr)  \
+    if (ptr && cnnrt_is_master())                                    \
+        *(ptr+OP_IDX) = optype;
 
 /* Instrumentation macro for collecting kernel call performance data. */
 #  define INST_KERNEL_BEGIN()                   \
@@ -279,22 +353,24 @@ static inline uint32_t _time_stamp()
 
 
 /* Instrumentation macro for collecting network performance data. */
-#  define INST_COMPUTE_BEGIN(name)                              \
+#  define INST_COMPUTE_BEGIN(name, myCore, ptr)                              \
     if (cnnrt_is_master()) {                                    \
         INST_PROFILE_CLIENTS_DISABLE();                         \
         _cnnrt_perf_totalCycles = 0;                            \
         _cnnrt_perf_totalKernelCycles = 0;                      \
         _cnnrt_perf_totalEdgeExtensionCycles = 0;               \
         _cnnrt_perf_totalidleWaitCycles = 0;                    \
-        printf ("RUNNING GRAPH%s...\n", INST_REFERENCE_STR);    \
-        _cnnrt_perf_print_layer_info_header();                  \
+        printf ("RUNNING GRAPH%s...core = %d\n", INST_REFERENCE_STR, XT_RSR_PRID());    \
+        if (!ptr)                                               \
+            _cnnrt_perf_print_mc_layer_info_header(myCore);        \
         INST_PROFILE_CLIENTS_ENABLE();                          \
     }
 
-#  define INST_COMPUTE_END(name, macs, num_cores, macs_per_cycle)       \
+#  define INST_COMPUTE_END(name, macs, num_cores, macs_per_cycle, myCore, ptr)       \
     if (cnnrt_is_master()) {                                            \
         INST_PROFILE_CLIENTS_DISABLE();                                 \
-        _cnnrt_perf_print_exec_info(DSP_FREQUENCY, BATCH_ADJUSTMENT, macs, num_cores, macs_per_cycle); \
+        if (!ptr)                                                        \
+            _cnnrt_perf_print_exec_info(DSP_FREQUENCY, BATCH_ADJUSTMENT, macs, num_cores, macs_per_cycle);  \
         INST_PROFILE_CLIENTS_ENABLE();                                  \
     }
 
@@ -314,20 +390,56 @@ static inline uint32_t _time_stamp()
     uint32_t _t_cycles_layer = _time_stamp();               \
 
 
-#  define INST_LAYER_END(index, name, macs, num_cores, macs_per_cycle)  \
+#  define INST_LAYER_END(index, name, macs, num_cores, macs_per_cycle, myCore, ptr)  \
     if (cnnrt_is_master()) {                                            \
         _cnnrt_wait_all();                                              \
-        _t_cycles_layer = _time_stamp() - _t_cycles_layer;              \
+        unsigned long long tmp_cyc = _time_stamp();                  \
+        unsigned long long LayerStart = _t_cycles_layer;             \
+        if (ptr) {                                                      \
+            *(ptr+LAYER_START) = _t_cycles_layer;                             \
+            *(ptr+LAYER_END)   = tmp_cyc;                                \
+        }                                                               \
+        _t_cycles_layer = tmp_cyc - _t_cycles_layer;              \
         INST_XTSC_LAYER_END(index);                                     \
         INST_PROFILE_CLIENTS_DISABLE();                                 \
         _cnnrt_perf_totalCycles += _t_cycles_layer;                     \
         _cnnrt_perf_totalEdgeExtensionCycles += _cnnrt_perf_currentEdgeExtensionCycles; \
         _cnnrt_perf_totalKernelCycles += _cnnrt_perf_currentKernelCycles; \
         _cnnrt_perf_totalidleWaitCycles += _cnnrt_perf_idleWaitCycles;  \
-        _cnnrt_perf_print_layer_info(name, _t_cycles_layer, macs, num_cores, macs_per_cycle); \
+        if (ptr) {                                                      \
+            *(ptr+TOT_CYC) = _t_cycles_layer;                       \
+            *(ptr+KERNEL_CYC) =  (unsigned long long)_cnnrt_perf_currentKernelCycles;  \
+            *(ptr+EDGE_CYC) =  (unsigned long long)_cnnrt_perf_currentEdgeExtensionCycles; \
+            *(ptr+IDLE_CYC) =   (unsigned long long)_cnnrt_perf_idleWaitCycles;         \
+            *((double *)(ptr+MAC_PER_CYC)) = (double) macs/(_t_cycles_layer?_t_cycles_layer:1); \
+            *((double *)(ptr+MAC_PERCENT))= (double)((double)(macs)/((macs_per_cycle ? macs_per_cycle : PEAK_MACS)*num_cores))*100/(_t_cycles_layer ? _t_cycles_layer : 1);                   \
+            *(ptr+TOT_MAC) = macs;                                          \
+            *(ptr+DMA_QUEUE) = (unsigned long) _cnnrt_perf_idmaMaxQueueSize;     \
+        } else                                                          \
+            _cnnrt_perf_print_layer_info(name, LayerStart, tmp_cyc, _t_cycles_layer, macs, num_cores, macs_per_cycle);   \
         INST_PROFILE_CLIENTS_ENABLE();                                  \
     }}
 
+#define INSERT_DUMMY_LAYER(myCore,ptr) \
+    if (ptr && cnnrt_is_master()) {                                     \
+        unsigned long long _t_tmp_cyc = _time_stamp();                               \
+        *(ptr+LAYER_START)=_t_tmp_cyc;                            \
+        *(ptr+LAYER_END)=_t_tmp_cyc;                              \
+        _t_tmp_cyc = 0;                                           \
+        _cnnrt_perf_totalCycles += _t_tmp_cyc;                    \
+        *(ptr+TOT_CYC) = _t_tmp_cyc;                              \
+        *(ptr+KERNEL_CYC) =  0;                                        \
+        *(ptr+EDGE_CYC) =  0;                                          \
+        *(ptr+IDLE_CYC) =   0;                                         \
+        *((double *)(ptr+MAC_PER_CYC)) = 0;                            \
+        *((double *)(ptr+MAC_PERCENT))= 0;\
+        *(ptr+TOT_MAC) = 0;                                          \
+        *(ptr+DMA_QUEUE) = 0;     \
+    }
+
+#  define RECORD_LAYER_OPTYPE(optype, ptr)  \
+    if (ptr && cnnrt_is_master())                                    \
+        *(ptr+OP_IDX) = optype;
 
 /* Instrumentation macro for collecting kernel call performance data. */
 #  define INST_KERNEL_BEGIN()                   \

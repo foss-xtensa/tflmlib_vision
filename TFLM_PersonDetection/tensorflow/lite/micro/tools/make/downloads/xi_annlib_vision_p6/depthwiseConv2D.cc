@@ -71,14 +71,13 @@ static bool SetupDepthwise2(conv_params_t *params, conv_mem_info_t *mem_info)
     return false;
 }
 
-/* Reorder Coeffecients taken from  xiDepthwiseDilatedConvA_reorderCoeffs */
 static bool
 ConvReorderCoefficients2(const uint8_t *coeff_ref, const int32_t* bias_ref, uint8_t *coeff, int32_t* bias, const conv_params_t *params)
 {
-	int32_t depthMultiplier = params->output.D / params->input.D;
-	int32_t height = params->kernelH;
-	int32_t width = params->kernelW;
-	int32_t inDepth = params->input.D;
+	uint32_t depthMultiplier = params->output.D / params->input.D;
+	uint32_t height = params->kernelH;
+	uint32_t width = params->kernelW;
+	uint32_t inDepth = params->input.D;
 	/* Both Coeff and Coeff_ref share the same pitch */
 	int32_t pitchW = params->output.D;
 	int32_t pitchH = params->output.D * params->kernelW;
@@ -100,6 +99,7 @@ ConvReorderCoefficients2(const uint8_t *coeff_ref, const int32_t* bias_ref, uint
               {
                 int32_t srcIndex = dm + d * depthMultiplier + w *pitchW + h * pitchH;
                 int32_t dstIndex = d + dm * inDepth + w * pitchW + h * pitchH; ;
+               int8_t srcdata = (int8_t)coeff_ref[srcIndex];
                 coeff[dstIndex] = coeff_ref[srcIndex];
               }
             }
@@ -117,26 +117,27 @@ ConvReorderCoefficients2(const uint8_t *coeff_ref, const int32_t* bias_ref, uint
         break;
 	}
     case kkVQ_Depthwise: { // need to convert coeff to S8 for XI-lib kernel
+		int offset = (params->tileType.dataType == XI_TILE3D_S8) ? 0 : 128;
 		int tiles_count = (params->output.D + params->tile.D - 1) / params->tile.D;
-		memcpy(bias, bias_ref, params->output.D * sizeof(int32_t));
+        memcpy(bias, bias_ref, params->output.D * sizeof(int32_t));
 
-		for (int tile = 0; tile < tiles_count; tile++) {
-			int tile_depth = std::min(params->tile.D, params->output.D - tile * params->tile.D);
-			int tile_depth64 = align_up(tile_depth, 64);
-			for (unsigned int h = 0; h < params->kernelH; h++) {
-				for (unsigned int w = 0; w < params->kernelW; w++) {
-					int d = 0;
-					for (; d < tile_depth; d++) {
-						*coeff++ = coeff_ref[(h * params->kernelW + w) * params->output.D + tile * params->tile.D + d];
-					}
-					for (; d < tile_depth64; d++) {
-						*coeff++ = 0;
-					}
-				}
-			}
-		}
-		break;
-	}
+        for (int tile = 0; tile < tiles_count; tile++) {
+            int tile_depth = std::min(params->tile.D, params->output.D - tile * params->tile.D);
+            int tile_depth64 = align_up(tile_depth, 64);
+            for (unsigned int h = 0; h < params->kernelH; h++) {
+                for (unsigned int w = 0; w < params->kernelW; w++) {
+                    int d = 0;
+                    for (; d < tile_depth; d++) {
+                        *coeff++ = coeff_ref[(h * params->kernelW + w) * params->output.D + tile * params->tile.D + d];
+                    }
+                    for (; d < tile_depth64; d++) {
+                        *coeff++ = 0;
+                    }
+                }
+            }
+        }
+        break;
+    }
     default:
       assert(0);
         return false;
@@ -201,6 +202,8 @@ uint32_t xiDepthwiseConvSetContext(uint8_t *pContext, uint32_t contextSize, cons
 	local_mem_info_t *mem_info = getMeminfoContext();
 	size_t bank0Size = mem_info->bank[0].size;
 	size_t bank1Size = mem_info->bank[1].size;
+	uint32_t largeBank  = std::max(bank0Size, bank1Size);
+	uint32_t smallBank  = std::min(bank0Size, bank1Size);
 
 	mem_inf.localMem.banksNumber = arena_num_banks();
 	mem_inf.localMem.bankSize[0] = bank0Size;
@@ -270,11 +273,15 @@ uint32_t xiDepthwiseConv(uint8_t *pContext, uint32_t contextSize, int8_t * input
 #endif
 #if FLK_CYCLES
   int stop = XT_RSR_CCOUNT();
-  printf("DepthwiseConv2D=%d\n",stop-start);
+  printf("DepthwiseConv2D (including iDMA) =%d\n",stop-start);
 #endif
 
 #if !IS_MULTICHANNEL_DMA
 	dma_barrier();
+#endif
+
+#if KERNEL_INFO
+	printf("depth_conv2d:iW=%d,iH=%d,iD=%d \t kw=%d,kh=%d \t oW=%d,oH=%d,oD=%d \n", convParams->input.W, convParams->input.H, convParams->input.D, convParams->kernelW, convParams->kernelH, convParams->output.W, convParams->output.H, convParams->output.D );
 #endif
 	return 0;
 }

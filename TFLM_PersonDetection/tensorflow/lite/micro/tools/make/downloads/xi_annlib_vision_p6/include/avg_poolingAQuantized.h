@@ -279,14 +279,14 @@ XI_ERR_TYPE MAKE_NAME(xiAvgPoolQuantizeA, DWH)(const xi_pTile3D inTile,
       MORPH_IDT_SCALAR* pOut = pOutData + y * outDataPitch2;
       pdvecOut = (MORPH_IDT_2Nx8 *)pOut;
       valign vaOutData = IVP_ZALIGN();
-      for (x = 0; x < outW; x += 64)                    // Along output width
+      for (x = 0; x < outW; x += (2 * XCHAL_IVPN_SIMD_WIDTH))                    // Along output width
       {
         /* Input Data Pointer */
         MORPH_IDT_SCALAR* pSrc = pInData + y * inDataPitch2 * strideU + \
           x * inDataPitch1 * strideU;
 
         xb_vecNx16 vecSeqXL = (IVP_SEQNX16() + (xb_vecNx16)x) << 1;
-        xb_vecNx16 vecSeqXH = (IVP_SEQNX16() + (xb_vecNx16)(x + 32)) << 1;
+        xb_vecNx16 vecSeqXH = (IVP_SEQNX16() + (xb_vecNx16)(x + XCHAL_IVPN_SIMD_WIDTH)) << 1;
         xb_vecNx16 vecXstartL = IVP_MAXNX16(IVP_ZERONX16(), (xb_vecNx16)(minLeftEdgeU - start_x) - vecSeqXL);
         xb_vecNx16 vecXstartH = IVP_MAXNX16(IVP_ZERONX16(), (xb_vecNx16)(minLeftEdgeU - start_x) - vecSeqXH);
         xb_vecNx16 vecXendL = IVP_MINNX16((xb_vecNx16)kernelWidthU, (xb_vecNx16)(frame_dim2 + minLeftEdgeU - start_x) - vecSeqXL);
@@ -319,7 +319,7 @@ XI_ERR_TYPE MAKE_NAME(xiAvgPoolQuantizeA, DWH)(const xi_pTile3D inTile,
           pdvecIn = (MORPH_IDT_2Nx8 *)pSrc;
           vaInData = MORPH_OP_PRIME_2Nx8(pdvecIn);
           MORPH_OP_LOAD_2Nx8_VARIABLE(dvecData1, vaInData, pdvecIn, inDataWidth - (x * strideU));
-          MORPH_OP_LOAD_2Nx8_VARIABLE(dvecData2, vaInData, pdvecIn, inDataWidth - (x * strideU) - 64);
+          MORPH_OP_LOAD_2Nx8_VARIABLE(dvecData2, vaInData, pdvecIn, inDataWidth - (x * strideU) - (2 * XCHAL_IVPN_SIMD_WIDTH));
           dvecData1 = IVP_SEL2NX8UI(dvecData2, dvecData1, IVP_SELI_8B_EXTRACT_1_OF_2_OFF_0);
           MORPH_OP_SUB_WIDEACC_2Nx8(daccSum1, dvecData1, input_zero_point);
 

@@ -209,7 +209,12 @@ void arena_deinit()
         /* Free saved memory states */
         for (int i=0; i < _arena_state->banks_count; i++) {
             if (_arena_state->banks[i].cstub_saved) {
+#ifndef _MSC_VER
                 free(_arena_state->banks[i].cstub_saved->ptr);
+#else
+                _aligned_free(_arena_state->banks[i].cstub_saved->ptr);
+#endif
+                
                 free(_arena_state->banks[i].cstub_saved);
             }
         }
@@ -380,6 +385,7 @@ XI_ERR_TYPE arena_alloc(void **dest, int bank, size_t size, size_t alignment)
         /* If this is the first allocation in the bank and its parameters are the same as
            on previos alooc/reset round then return existing buffer saved from previos
            round. This way memory state is preserved across alloc/reset rounds. */
+#ifdef SAVE_FIRST_ALLOC
         if (entry
             && entry->start == pos
             && entry->end == pos + size
@@ -390,6 +396,7 @@ XI_ERR_TYPE arena_alloc(void **dest, int bank, size_t size, size_t alignment)
             _arena_state->banks[bank].cstub_saved = NULL;
         }
         else
+#endif
         {
             entry = (mem_buffer_t *)malloc(sizeof(*entry));
             if (entry) {
@@ -422,7 +429,11 @@ XI_ERR_TYPE arena_alloc(void **dest, int bank, size_t size, size_t alignment)
                 /* Allocate extra 64Kb to cover Gather/Scatter accesses that may happen in CSTUBs even
                    with byte-disables. */
                 ls_size += 65536;
+#ifndef _MSC_VER
                 entry->ptr = memalign(ls_alignment, ls_size);
+#else
+                entry->ptr = _aligned_malloc(ls_size, ls_alignment);
+#endif
                 entry->next = _arena_state->banks[bank].cstub_buffers;
                 entry->pad_head = ls_offset;
                 entry->pad_tail = ls_size - size - ls_offset;
@@ -432,7 +443,11 @@ XI_ERR_TYPE arena_alloc(void **dest, int bank, size_t size, size_t alignment)
                 while (tmp) {
                     if (arena_buffers_intersect(tmp, entry))
                         {
+#ifndef _MSC_VER
                             free(entry->ptr);
+#else
+                            _aligned_free(entry->ptr);
+#endif
                             free(entry);
                             XI_RUN_TIME_CHECK(0, "Allocated buffers intersect", XI_ERR_BADARG);
                             return XI_ERR_BADARG;
@@ -480,7 +495,11 @@ XI_ERR_TYPE arena_static_alloc(void ** dest, size_t size, size_t alignment)
     /* Adjust base in the lowest bank, this is permanent allocation. */
     _arena_state->banks[0].base = end;
 #if CSTUB_BUILD
+#ifndef _MSC_VER
     start = (char*)memalign(alignment, size);
+#else
+    start = (char*)_aligned_malloc(size, alignment);
+#endif
 #endif // CSTUB_BUILD
     *dest = (void*)start;
 
@@ -508,14 +527,20 @@ XI_ERR_TYPE arena_reset()
                     XI_RUN_TIME_CHECK(ptr[i] == MEM_PADDING_VALUE,
                                       "Memory overrun detected", XI_ERR_BADARG);
                 }
+#ifdef SAVE_FIRST_ALLOC
                 if (_arena_state->banks[i].cstub_buffers == NULL) {
                     /* Save first alloc() entry for the next round */
                     mem_buffer_t *tmp = _arena_state->banks[i].cstub_saved;
                     _arena_state->banks[i].cstub_saved = entry;
                     entry = tmp;
                 }
+#endif
                 if (entry) {
+#ifndef _MSC_VER
                     free(entry->ptr);
+#else
+                  _aligned_free(entry->ptr);
+#endif
                     free(entry);
                 }
             }
@@ -554,7 +579,7 @@ XI_ERR_TYPE arena_bank_free_space(uint32_t bank_num, uint32_t *free_space)
 {
     XI_RUN_TIME_CHECK(_arena_state != NULL, "Not initialized", XI_ERR_BADARG);
     XI_RUN_TIME_CHECK(free_space != NULL, "free_space argument cannot be NULL", XI_ERR_NULLARG);
-    XI_RUN_TIME_CHECK((int32_t)bank_num < _arena_state->banks_count, "Invalid bank num", XI_ERR_BADARG);
+    XI_RUN_TIME_CHECK(bank_num < _arena_state->banks_count, "Invalid bank num", XI_ERR_BADARG);
     *free_space = (uint32_t)_arena_state->banks[bank_num].end -
         (uint32_t)_arena_state->banks[bank_num].base;
     return XI_ERR_OK;
@@ -564,7 +589,7 @@ XI_ERR_TYPE arena_bank_free_space_debug(uint32_t bank_num, uint32_t *free_space)
 {
     XI_RUN_TIME_CHECK(_arena_state != NULL, "Not initialized", XI_ERR_BADARG);
     XI_RUN_TIME_CHECK(free_space != NULL, "free_space argument cannot be NULL", XI_ERR_NULLARG);
-    XI_RUN_TIME_CHECK((int32_t)bank_num < _arena_state->banks_count, "Invalid bank num", XI_ERR_BADARG);
+    XI_RUN_TIME_CHECK(bank_num < _arena_state->banks_count, "Invalid bank num", XI_ERR_BADARG);
     *free_space = (uint32_t)_arena_state->banks[bank_num].end -
         (uint32_t)_arena_state->banks[bank_num].pos;
     return XI_ERR_OK;
@@ -572,17 +597,17 @@ XI_ERR_TYPE arena_bank_free_space_debug(uint32_t bank_num, uint32_t *free_space)
 
 void * arena_pinned_buffer(uint32_t bank_num, uint32_t alignment)
 {
-    if (_arena_state == NULL || (int32_t)bank_num >= _arena_state->banks_count) {
+    if (_arena_state == NULL || bank_num >= _arena_state->banks_count) {
         return NULL;
     }
 #if CSTUB_BUILD
     /* See if arena was reset or not */
     if (_arena_state->banks[bank_num].cstub_buffers) {
         /* Return first allocated buffer */
-        return alignup(_arena_state->banks[bank_num].cstub_buffers->ptr, alignment);
+        return alignup((char *)_arena_state->banks[bank_num].cstub_buffers->ptr, alignment);
     } else if (_arena_state->banks[bank_num].cstub_saved) {
         /* Lookup in saved after reset */
-        return alignup(_arena_state->banks[bank_num].cstub_saved->ptr, alignment);
+        return alignup((char *)_arena_state->banks[bank_num].cstub_saved->ptr, alignment);
     } else {
         /* No buffers pinned */
         return NULL;

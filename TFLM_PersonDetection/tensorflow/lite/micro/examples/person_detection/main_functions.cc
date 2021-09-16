@@ -26,6 +26,10 @@ limitations under the License.
 #include "tensorflow/lite/schema/schema_generated.h"
 
 #include "utils.h"
+#if defined(__XTENSA__)
+#include <xtensa/xt_profiling.h>
+#include <xtensa/sim.h>
+#endif
 
 // Globals, used for compatibility with Arduino-style sketches.
 namespace {

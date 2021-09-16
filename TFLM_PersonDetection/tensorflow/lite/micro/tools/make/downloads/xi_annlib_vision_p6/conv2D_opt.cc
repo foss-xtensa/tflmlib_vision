@@ -24,7 +24,8 @@
 #include "xi_tile3d_manager.h"
 #include "flk_conv.h"
 #include "utils.h"
-
+#include "xi_core.h"
+#include "xi_intrin.h"
 #define max(a, b)                         ((a > b) ? a : b)
 #define min(a, b)                         ((a > b) ? b : a)
 
@@ -59,7 +60,7 @@ typedef XI_ERR_TYPE (*xiConvolvedA3D_VQ7_QM_f)(const xi_pTile3D inTile,
                                                xi_pTile3D outTile,
                                                const xi_cnna_conv_params *param);
 
-#if 0
+
 /* Setup fixup tile parameters acording to output tile parameters */
 INLINE void
 setup_fixup_tile(const xi_pTile3D outp, xi_pTile fixup, const int32_t isVQ7optimize)
@@ -78,7 +79,7 @@ setup_fixup_tile(const xi_pTile3D outp, xi_pTile fixup, const int32_t isVQ7optim
   }
   XI_TILE_SET_HEIGHT(fixup, XI_TILE3D_GET_DIM3(outp));
 }
-#endif
+
 #if 0
 XI_ERR_TYPE xiConvolvedFixupA3D_GS_MOW1x1(xi_pTile3D inTile,
                                           const xi_pTile4D coeffTile,
@@ -120,8 +121,14 @@ XI_ERR_TYPE xiConvolveAVQ3D_QM32_S8_DWH(const xi_pTile3D inTile,
                                          const xi_pTile3D outTile,
                                          const xi_cnna_conv_params *param)
 {
+
+#if 0
   //(void) fixUpTile;
   return(XI_KERNEL_NAME (xiConvolvedAVQ3D_QM32_S8_DWH)(inTile, coeffTile, biasArray, outScaleArray, outShiftArray, outTile, param));
+#else
+  return XI_ERR_OK;
+#endif
+
 }
 void SetTileType(xi_pTile3D tile3DInpA, xi_pTile3D tile3DInpB,
                  xi_pTile3D tile3DOutpA, xi_pTile3D tile3DOutpB,
@@ -354,8 +361,8 @@ transfer_input_tile(uint8_t *inputPtr, xi_pTile3D inp, const conv_params_t *para
 
     int validX = max(0, boundX);
     int validY = max(0, boundY);
-    int validW = min(boundW, (int)params->input.W) - validX;
-    int validH = min(boundH, (int)params->input.H) - validY;
+    int validW = min(boundW, params->input.W) - validX;
+    int validH = min(boundH, params->input.H) - validY;
 
 
     //printf("valuid X Y %d %d and Valid W H %d %d \n", validX,validY,validW,validH);
@@ -428,8 +435,8 @@ transfer_input_tile(uint8_t *inputPtr, xi_pTile3D inp, const conv_params_t *para
 
     int validX = max(0, boundX);
     int validY = max(0, boundY);
-    int validW = min(boundW, (int)params->input.W) - validX;
-    int validH = min(boundH, (int)params->input.H) - validY;
+    int validW = min(boundW, params->input.W) - validX;
+    int validH = min(boundH, params->input.H) - validY;
 
 
     int pad_left   = validX - boundX;
@@ -470,7 +477,7 @@ transfer_output_tile(uint8_t *outputPtr, xi_pTile3D outp, const conv_params_t *p
     int H = XI_TILE3D_GET_DIM3(outp);
 
     //printf("m here output %d %d %d \n", XI_TILE3D_GET_DIM3_COORD(outp),XI_TILE3D_GET_DIM2_COORD(outp),XI_TILE3D_GET_DIM1_COORD(outp));
-    int validoutDepth = min(D, min(XI_TILE3D_GET_DIM1_COORD(outp) + (int)params->tile.D, (int)params->output.D) - XI_TILE3D_GET_DIM1_COORD(outp));
+    int validoutDepth = min(D, min(XI_TILE3D_GET_DIM1_COORD(outp) + params->tile.D, params->output.D) - XI_TILE3D_GET_DIM1_COORD(outp));
 
     int remainigZeros = validoutDepth - ((validoutDepth >> 4) << 4);
 
@@ -662,9 +669,6 @@ XI_ERR_TYPE flk_conv(const uint8_t *raw_params,
   xiConvolvedAVQ3D_f kernelVQ = NULL;
   xiConvolvedA3D_VQ7_QM_f kernel_QMopt = NULL;
   xiConvolvedFixupA3D_f fixup = NULL;
-#if KERNEL_CYCLES
-  int fixupCy = 0;
-#endif
 
   xi_cnna_conv_params xiparams;
   uint8_t *func_params_ptr = (uint8_t *) &xiparams;
@@ -710,9 +714,9 @@ XI_ERR_TYPE flk_conv(const uint8_t *raw_params,
   }
 #endif
   /* Allocate buffers */
-  arena_alloc((void * *) (&buffCoeffA), /* bank */ (params->banks_info.bankAssignments & (1 << 5) ? 1 : 0), /* size */ mem_info.coeffTileSize, /* alignment */ ALIGNMENT);
+  arena_alloc((void * *) (&buffCoeffA), /* bank */ (params->banks_info.bankAssignments & (1 << 5) ? 0 : 1), /* size */ mem_info.coeffTileSize, /* alignment */ ALIGNMENT);
   if (buffCoeffA == NULL)
-   (arena_alloc((void * *) (&buffCoeffA), /* bank */ (params->banks_info.bankAssignments & (1 << 5) ? 0 : 1), /* size */ mem_info.coeffTileSize, /* alignment */ ALIGNMENT));
+   (arena_alloc((void * *) (&buffCoeffA), /* bank */ (params->banks_info.bankAssignments & (1 << 5) ? 1 : 0), /* size */ mem_info.coeffTileSize, /* alignment */ ALIGNMENT));
   if (doubleBuffCoeff)
   {
     XI_CHECK_RESULT(arena_alloc((void * *) (&buffCoeffB), /* bank */ (params->banks_info.bankAssignments & (1 << 6) ? 1 : 0), /* size */ mem_info.coeffTileSize, /* alignment */ ALIGNMENT));
@@ -808,9 +812,9 @@ XI_ERR_TYPE flk_conv(const uint8_t *raw_params,
   uint8_t *coeffPtr  = (uint8_t *) input->args[1];
   uint8_t *biasPtr   = (uint8_t *) input->args[2];
   uint8_t *outputPtr = (uint8_t *) output->args[0];
-  int32_t *outScalePtr;
-  int8_t *outShiftPtr;
-  uint8_t *preluPtr;
+  int32_t *outScalePtr = NULL;
+  int8_t *outShiftPtr = NULL;
+  uint8_t *preluPtr = NULL;
   if (CONV_FLAG_GET_PRELU(params->flags) || CONV_FLAG_GET_LEAKY_PRELU(params->flags))
   {
     preluPtr = (uint8_t *) input->args[3];
@@ -1117,7 +1121,7 @@ XI_ERR_TYPE flk_conv(const uint8_t *raw_params,
   unsigned int batchSize = params->batch;
 
   /* Enforce coefficent reload variant if we can't split input tensor over all cores along D */
-  if (!CONV_FLAG_GET_RELOAD_INPUT(params->flags) || !doubleBuffInput || ((int)mem_info.numTilesD < (getTotalCores() * 2)))
+  if (!CONV_FLAG_GET_RELOAD_INPUT(params->flags) || !doubleBuffInput || (mem_info.numTilesD < (getTotalCores() * 2)))
   {
     /* Prefer to reload coefficients to reduce overall bandwidth */
 
@@ -1206,13 +1210,7 @@ XI_ERR_TYPE flk_conv(const uint8_t *raw_params,
                 XI_CNNA_CONV_SET_ZEROPT_COEFF(&xiparams, params->zeroPtCoeff + 128);
             }
             INST_KERNEL_BEGIN();
-#if KERNEL_CYCLES
-			int start = XT_RSR_CCOUNT();
-#endif
             XI_CHECK_RESULT(fixup(tile3DInpA, tile4DCoeffA, tile3DOutpA, &structs.fixupTile, &xiparams));
-#if KERNEL_CYCLES
-			fixupCy = XT_RSR_CCOUNT() - start;
-#endif
             INST_KERNEL_END();
             XI_CNNA_CONV_SET_ZEROPT_COEFF(&xiparams, params->zeroPtCoeff);
           }
@@ -1297,7 +1295,7 @@ XI_ERR_TYPE flk_conv(const uint8_t *raw_params,
             kernel_func(tile3DInpA, &arrPtrOffset, tile4DCoeffA, &arr1DBias, &structs.fixupTile, &arr1DOutScale, &arr1DOutShift, tile3DOutpA, params, (xi_cnna_conv_params *) func_params_ptr, kernel, kernelVQ, kernel_QMopt);
 #if KERNEL_CYCLES
 			int stop = XT_RSR_CCOUNT();
-			printf("Conv2D=%d\n",fixupCy + stop-start);
+			printf("Conv2D=%d\n",stop-start);
 #endif
 
             INST_KERNEL_END();

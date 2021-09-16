@@ -22,6 +22,12 @@
 #include "cnnrt.h"
 #include <string>
 
+/* define 1 to place conv_params object in local memory.
+We access elements/parms from conv object very often and 
+placing this object in loacl memory (rather than external memory)
+would save good number of cycles */
+#define CONV_PARAMS_LOCAL_MEM (1)
+
 // define 1 to use Google's reference implementation, 0 otherwise
 #define FLK_USE_GOOGLE_REF 0
 
@@ -31,7 +37,9 @@
 #define REF_FLK_CONV2D           0
 #define REF_FLK_DEPTHWISE_CONV2D 0
 #endif
-
+#define KERNEL_CYCLES (0) // for each layer cycles
+#define KERNEL_INFO (0) // for each layer conv params
+#define FLK_CYCLES (0) // for flk cycles (including iDMA)
 #define ENABLE_OUTPUT_DUMP_FILES 0 // when set to 1, dumps output from each op layer
 
 #define XTENSA_BUFFER_SIZE (216 * 1024) // sufficient to hold coeff+biases of every kernel instance

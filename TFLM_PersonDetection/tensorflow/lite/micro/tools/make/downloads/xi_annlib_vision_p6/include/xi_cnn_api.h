@@ -23,7 +23,6 @@
 
 #if defined(__XTENSA__) || defined(__GNUC__)
 #else
-#define ALIGN(x)  _declspec(align(x))
 #define ALIGN16  _declspec(align(16))
 #define ALIGN32  _declspec(align(32))
 #define ALIGN64  _declspec(align(64))

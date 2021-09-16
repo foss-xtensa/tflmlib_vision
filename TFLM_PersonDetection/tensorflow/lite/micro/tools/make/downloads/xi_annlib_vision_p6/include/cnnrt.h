@@ -32,8 +32,9 @@
 
 
 #ifdef __XCC__
-
-/* Place static data to the local memory with lowest address. */
+#define STACK_SIZE (6*1024)
+/* Place static data to the local memory with higest address. Stack shall also be in 
+highest address dram*/
 #  if XCHAL_NUM_DATARAM>1 && XCHAL_DATARAM1_PADDR < XCHAL_DATARAM0_PADDR
 #    define _LOCAL_RAM_      __attribute__((section(".dram1.data")))
 #  else
@@ -54,7 +55,7 @@
 #  endif
 
 #else
-
+#define STACK_SIZE (6*1024)
 #  define _LOCAL_RAM_
 #  define HINT_NEVER
 #  define HINT_FREQUENT
@@ -119,7 +120,9 @@ void cnnrt_print_local_mem_info(const size_t stack_size, local_mem_info_t *mem_i
      dma_queue_size: max number of items in DMA queue.
      mem_info: memory for arena allocator.
 */
-XI_ERR_TYPE cnnrt_init(unsigned int dma_queue_size, const local_mem_info_t *mem_info);
+XI_ERR_TYPE cnnrt_dma_init(void);
+XI_ERR_TYPE cnnrt_dma_init_loops(unsigned queue_size);
+XI_ERR_TYPE cnnrt_init(const unsigned int dma_queue_size, const local_mem_info_t *mem_info);
 
 #if XCHAL_HAVE_XNNE == 1
 
@@ -166,7 +169,12 @@ XI_ERR_TYPE _cnnrt_wait_all();
 #include "cnnrt_helpers.h"
 #include "cnnrt_compression.h"
 #include "cnnrt_compression_support.h"
-#include "cnnrt_xmp.h"
+
+/* definitions from cnnrt_xmp.h */
+#  define cnnrt_core_id()       0
+#  define cnnrt_core_num()      1
+#  define cnnrt_barrier(status)
+#  define cnnrt_is_master()     1
 
 #endif /* _CNNRT_H_INCLUDED_ */
 

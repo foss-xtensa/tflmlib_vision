@@ -93,7 +93,7 @@ char* FastInt32ToBufferLeft(int32_t i, char* buffer) {
   uint32_t u = i;
   if (i < 0) {
     *buffer++ = '-';
-    u = -u;
+    u = (uint32_t)(-(int32_t)u);
   }
   return FastUInt32ToBufferLeft(u, buffer, 10);
 }
@@ -282,6 +282,14 @@ extern "C" int MicroVsnprintf(char* output, int len, const char* format,
           break;
         case '%':
           output[output_index++] = *current++;
+          break;
+        case 'c':
+          if (usable_length - output_index < 1) {
+            output[output_index++] = '\0';
+            return output_index;
+          }
+          output[output_index++] = va_arg(args, int32_t);
+          current++;
           break;
         case 's':
           char* string = va_arg(args, char*);

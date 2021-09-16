@@ -69,6 +69,20 @@ static inline int inc_iter_to_temp(int *temp, int var, int bound, int carry)
     return carry;
 }
 
+/* increment into a new variable with offset.
+
+   Returns overflow flag:
+      1 if overflowed
+      0 if didn't overflow
+*/
+static inline int inc_iter_to_temp_with_offset(int *temp, int var, int start, int bound, int carry)
+{
+    int new_val = var + carry;
+    carry = new_val == bound;
+    *temp = carry ? start : new_val;
+    return carry;
+}
+
 /*
    Align m to multiple of n's
 */
