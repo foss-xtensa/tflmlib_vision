@@ -174,14 +174,14 @@ static void print_FLOAT(FILE *f, const void *buffer, unsigned stride, unsigned s
 #ifndef QUANTIZER_COMPATIBLE_DUMP
     while (size >= 8) {
         fprintf (f, "%f %f %f %f %f %f %f %f\n",
-                 ptr[0*stride], ptr[1*stride], ptr[2*stride], ptr[3*stride],
-                 ptr[4*stride], ptr[5*stride], ptr[6*stride], ptr[7*stride]);
+        		(double)ptr[0*stride], (double)ptr[1*stride], (double)ptr[2*stride], (double)ptr[3*stride],
+        		(double)ptr[4*stride], (double)ptr[5*stride], (double)ptr[6*stride], (double)ptr[7*stride]);
         size -= 8;
         ptr += 8*stride;
     }
 
     while (size > 0) {
-        fprintf (f, "%f ", ptr[0]);
+        fprintf (f, "%f ", (double)ptr[0]);
         size --;
         ptr += stride;
     }
@@ -624,7 +624,7 @@ void print_stats_U8(const char *name, const void *buffer, unsigned dim0, unsigne
             }
         }
         printf("[STATS] %s, dims: %dx%dx%dx%d, total: %d, min_val: %d, max_val: %d, zeros: %d, zero ratio: %.2f\n",
-                    name, dim0, dim1, dim2, dim3, total, min_val, max_val, zeros, (float)zeros/total);
+                    name, dim0, dim1, dim2, dim3, total, min_val, max_val, zeros, (double)zeros/(double)total);
 #ifdef __XCC__
 #if XCHAL_DCACHE_SIZE
         xthal_dcache_region_writeback_inv((void*)buffer, buffer_size);
@@ -676,7 +676,7 @@ void print_stats_U16(const char *name, const void *buffer, unsigned dim0, unsign
             }
         }
         printf("[STATS] %s, dims: %dx%dx%dx%d, total: %d, min_val: %d, max_val: %d, zeros: %d, zero ratio: %.2f\n",
-                    name, dim0, dim1, dim2, dim3, total, min_val, max_val, zeros, (float)zeros/total);
+                    name, dim0, dim1, dim2, dim3, total, min_val, max_val, zeros, (double)zeros/(double)total);
 #ifdef __XCC__
 #if XCHAL_DCACHE_SIZE
         xthal_dcache_region_writeback_inv((void*)buffer, buffer_size);
@@ -728,7 +728,7 @@ void print_stats_U32(const char *name, const void *buffer, unsigned dim0, unsign
             }
         }
         printf("[STATS] %s, dims: %dx%dx%dx%d, total: %d, min_val: %d, max_val: %d, zeros: %d, zero ratio: %.2f\n",
-                    name, dim0, dim1, dim2, dim3, total, min_val, max_val, zeros, (float)zeros/total);
+                    name, dim0, dim1, dim2, dim3, total, min_val, max_val, zeros, (double)zeros/(double)total);
 #ifdef __XCC__
 #if XCHAL_DCACHE_SIZE
         xthal_dcache_region_writeback_inv((void*)buffer, buffer_size);
@@ -782,7 +782,7 @@ void print_stats_FLOAT(const char *name, const void *buffer, unsigned dim0, unsi
             }
         }
         printf("[STATS] %s, dims: %dx%dx%dx%d, total: %d, min_val: %f, max_val: %f, zeros: %d, zero ratio: %.2f\n",
-                    name, dim0, dim1, dim2, dim3, total, min_val, max_val, zeros, (float)zeros/total);
+                    name, dim0, dim1, dim2, dim3, total, (double)min_val, (double)max_val, zeros, (double)zeros/(double)total);
 #ifdef __XCC__
 #if XCHAL_DCACHE_SIZE
         xthal_dcache_region_writeback_inv((void*)buffer, buffer_size);
@@ -839,7 +839,7 @@ void randomize_array(void *dst, size_t size)
 {
     uint8_t* ptr = (uint8_t*) dst;
     int i;
-    for (i = 0; i < size; i++) {
+    for (i = 0; i < (int)size; i++) {
         ptr[i] = random_U8();
     }
 }

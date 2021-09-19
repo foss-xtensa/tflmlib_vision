@@ -61,25 +61,6 @@ typedef XI_ERR_TYPE (*xiConvolvedA3D_VQ7_QM_f)(const xi_pTile3D inTile,
                                                const xi_cnna_conv_params *param);
 
 
-/* Setup fixup tile parameters acording to output tile parameters */
-INLINE void
-setup_fixup_tile(const xi_pTile3D outp, xi_pTile fixup, const int32_t isVQ7optimize)
-{
-  XI_TILE_SET_WIDTH(fixup, XI_TILE3D_GET_DIM2(outp));
-  XI_TILE_SET_HEIGHT(fixup, XI_TILE3D_GET_DIM3(outp));
-  XI_TILE_SET_PITCH(fixup, XI_TILE3D_GET_DIM2(outp));
-
-  if (isVQ7optimize) {
-    XI_TILE_SET_WIDTH(fixup, XI_TILE3D_GET_DIM1(outp) >> 4);
-    XI_TILE_SET_PITCH(fixup, XI_TILE3D_GET_DIM1(outp) >> 4);
-  }
-  else {
-    XI_TILE_SET_WIDTH(fixup, XI_TILE3D_GET_DIM2(outp));
-    XI_TILE_SET_PITCH(fixup, XI_TILE3D_GET_DIM2(outp));
-  }
-  XI_TILE_SET_HEIGHT(fixup, XI_TILE3D_GET_DIM3(outp));
-}
-
 #if 0
 XI_ERR_TYPE xiConvolvedFixupA3D_GS_MOW1x1(xi_pTile3D inTile,
                                           const xi_pTile4D coeffTile,
@@ -361,8 +342,8 @@ transfer_input_tile(uint8_t *inputPtr, xi_pTile3D inp, const conv_params_t *para
 
     int validX = max(0, boundX);
     int validY = max(0, boundY);
-    int validW = min(boundW, params->input.W) - validX;
-    int validH = min(boundH, params->input.H) - validY;
+    int validW = min(boundW, (int)params->input.W) - validX;
+    int validH = min(boundH, (int)params->input.H) - validY;
 
 
     //printf("valuid X Y %d %d and Valid W H %d %d \n", validX,validY,validW,validH);
@@ -435,8 +416,8 @@ transfer_input_tile(uint8_t *inputPtr, xi_pTile3D inp, const conv_params_t *para
 
     int validX = max(0, boundX);
     int validY = max(0, boundY);
-    int validW = min(boundW, params->input.W) - validX;
-    int validH = min(boundH, params->input.H) - validY;
+    int validW = min(boundW, (int)params->input.W) - validX;
+    int validH = min(boundH, (int)params->input.H) - validY;
 
 
     int pad_left   = validX - boundX;
@@ -477,7 +458,7 @@ transfer_output_tile(uint8_t *outputPtr, xi_pTile3D outp, const conv_params_t *p
     int H = XI_TILE3D_GET_DIM3(outp);
 
     //printf("m here output %d %d %d \n", XI_TILE3D_GET_DIM3_COORD(outp),XI_TILE3D_GET_DIM2_COORD(outp),XI_TILE3D_GET_DIM1_COORD(outp));
-    int validoutDepth = min(D, min(XI_TILE3D_GET_DIM1_COORD(outp) + params->tile.D, params->output.D) - XI_TILE3D_GET_DIM1_COORD(outp));
+    int validoutDepth = min(D, (int)min((int)XI_TILE3D_GET_DIM1_COORD(outp) + (int)params->tile.D, (int)params->output.D) - (int)XI_TILE3D_GET_DIM1_COORD(outp));
 
     int remainigZeros = validoutDepth - ((validoutDepth >> 4) << 4);
 
@@ -1119,19 +1100,19 @@ XI_ERR_TYPE flk_conv(const uint8_t *raw_params,
   }
 
   unsigned int batchSize = params->batch;
-
+  unsigned tileSize;
+  int nD, nW, nH, nB;
   /* Enforce coefficent reload variant if we can't split input tensor over all cores along D */
-  if (!CONV_FLAG_GET_RELOAD_INPUT(params->flags) || !doubleBuffInput || (mem_info.numTilesD < (getTotalCores() * 2)))
+  if (!CONV_FLAG_GET_RELOAD_INPUT(params->flags) || !doubleBuffInput || ((int)mem_info.numTilesD < (int)(getTotalCores() * 2)))
   {
     /* Prefer to reload coefficients to reduce overall bandwidth */
 
     uint32_t currTile = 0;
-    uint32_t nB, nW, nH;
 
     /* Find first tile coordinates, incrementing loop variables with wraparound and carry over */
-    int exceed = inc_variable_iter(&nW, 0, mem_info.numTilesW,
-                      inc_variable_iter(&nB, 0, batchSize,
-                            inc_variable_iter(&nH, 0, mem_info.numTilesH, getMyCore())));
+    int exceed = inc_variable_iter((uint32_t *)&nW, 0, mem_info.numTilesW,
+                      inc_variable_iter((uint32_t *)&nB, 0, batchSize,
+                            inc_variable_iter((uint32_t *)&nH, 0, mem_info.numTilesH, getMyCore())));
     if (exceed)
         return XI_ERROR_STATUS();
 
@@ -1143,7 +1124,7 @@ XI_ERR_TYPE flk_conv(const uint8_t *raw_params,
     transfer_input_tile(&inputPtr[(nB * params->input.D * params->input.W * params->input.H) << FC_FP16_flag], tile3DInpA, params);
 
     /* Load first coefficients tile */
-    uint32_t tileSize = setup_coeff_tile(tile3DOutpA, tile4DCoeffA, params);
+    tileSize = setup_coeff_tile(tile3DOutpA, tile4DCoeffA, params);
     //dma_1d_sys2loc_straddles(/* src */ coeffPtr, /* dst */ buffCoeffA, /* row size */ mem_info.coeffTileSize);
     dma_1d_sys2loc_straddles(/* src */ coeffPtr, /* dst */ buffCoeffA, /* row size */ tileSize);
 
@@ -1165,9 +1146,9 @@ XI_ERR_TYPE flk_conv(const uint8_t *raw_params,
 
           /* Find next tile coordinates, incrementing loop variables with wraparound and carry over */
           int lastSpatial;
-          lastSpatial =   inc_variable_iter(&nW, W, mem_info.numTilesW,
-                              inc_variable_iter(&nB, B, batchSize,
-                                  inc_variable_iter(&nH, H, mem_info.numTilesH, getTotalCores())));
+          lastSpatial =   inc_variable_iter((uint32_t *)&nW, W, mem_info.numTilesW,
+                              inc_variable_iter((uint32_t *)&nB, B, batchSize,
+                                  inc_variable_iter((uint32_t *)&nH, H, mem_info.numTilesH, getTotalCores())));
           /* Request next input transfer if it's not the last iteration */
           if (!lastSpatial)
           {
@@ -1245,14 +1226,14 @@ XI_ERR_TYPE flk_conv(const uint8_t *raw_params,
             int loadCoefficients = mem_info.numTilesD != 1 && (!lastSpatial || D != mem_info.numTilesD - 1);
             if (loadCoefficients && doubleBuffCoeff)
             {
-              int nD, nW, nH, nB;
+
               /* Find next tile coordinates, incrementing loop variables with wraparound and carry over */
               inc_iter_to_temp(&nW, W, mem_info.numTilesW,
                                inc_iter_to_temp(&nB, B, batchSize,
                                                 inc_iter_to_temp(&nH, H, mem_info.numTilesH,
                                                                  inc_iter_to_temp(&nD, D, mem_info.numTilesD, 1))));
               setup_outp_tile(nD * params->tile.D, nW * params->tile.W, nH * params->tile.H, tile3DOutpB, params);
-              unsigned tileSize = setup_coeff_tile(tile3DOutpB, tile4DCoeffB, params);
+              tileSize = setup_coeff_tile(tile3DOutpB, tile4DCoeffB, params);
               dma_1d_sys2loc_straddles(/* src */ coeffPtr + nD * mem_info.coeffTileSize, /* dst */ XI_TILE4D_GET_BUFF_PTR(tile4DCoeffB), /* row size */ tileSize);
               //dma_1d_sys2loc_straddles(/* src */ coeffPtr + nD * mem_info.coeffTileSize, /* dst */ XI_TILE4D_GET_BUFF_PTR(tile4DCoeffB), /* row size */ tileSize);
             }
@@ -1308,14 +1289,14 @@ XI_ERR_TYPE flk_conv(const uint8_t *raw_params,
             }
             if (loadCoefficients && !doubleBuffCoeff)
             {
-              int nD, nW, nH, nB;
+
               /* Find next tile coordinates, incrementing loop variables with wraparound and carry over */
               inc_iter_to_temp(&nW, W, mem_info.numTilesW,
                                inc_iter_to_temp(&nB, B, batchSize,
                                                 inc_iter_to_temp(&nH, H, mem_info.numTilesH,
                                                                  inc_iter_to_temp(&nD, D, mem_info.numTilesD, 1))));
               setup_outp_tile(nD * params->tile.D, nW * params->tile.W, nH * params->tile.H, tile3DOutpB, params);
-              unsigned tileSize = setup_coeff_tile(tile3DOutpB, tile4DCoeffB, params);
+              tileSize = setup_coeff_tile(tile3DOutpB, tile4DCoeffB, params);
               dma_1d_sys2loc_straddles(/* src */ coeffPtr + nD * mem_info.coeffTileSize, /* dst */ XI_TILE4D_GET_BUFF_PTR(tile4DCoeffB), /* row size */ tileSize);
             }
             /* Wait for overlapping DMA transfers */
@@ -1364,7 +1345,7 @@ XI_ERR_TYPE flk_conv(const uint8_t *raw_params,
     setup_outp_tile(Dstart, 0, 0, tile3DOutpA, params);
 
     /* Load first coefficients tile */
-    uint32_t tileSize = setup_coeff_tile(tile3DOutpA, tile4DCoeffA, params);
+    tileSize = setup_coeff_tile(tile3DOutpA, tile4DCoeffA, params);
 
     dma_1d_sys2loc_straddles(/* src */ coeffPtr + Dstart * mem_info.coeffTileSize, /* dst */ buffCoeffA, /* row size */ tileSize);
 
@@ -1391,14 +1372,12 @@ XI_ERR_TYPE flk_conv(const uint8_t *raw_params,
 
       /* Request next coefficients tile */
       int lastCoeff = D == Dend - 1;
-
       if (!lastCoeff)
       {
-        int nD;
         /* Find next tile coordinates, incrementing loop variables with wraparound and carry over */
         inc_iter_to_temp(&nD, D, mem_info.numTilesD, 1);
         setup_outp_tile(nD * params->tile.D, 0, 0, tile3DOutpB, params);
-        unsigned tileSize = setup_coeff_tile(tile3DOutpB, tile4DCoeffB, params);
+        tileSize = setup_coeff_tile(tile3DOutpB, tile4DCoeffB, params);
         if (doubleBuffCoeff)
         {
            //printf("before nD: %d, %d\n", nD, nD * mem_info.coeffTileSize);
@@ -1439,7 +1418,6 @@ XI_ERR_TYPE flk_conv(const uint8_t *raw_params,
             /* Request next input transfer if it's not the last iteration */
             if (doubleBuffInput && (!lastSpatial || !lastCoeff))
             {
-              int nD, nW, nH, nB;
               /* Find next tile coordinates, incrementing loop variables with wraparound and carry over */
               inc_iter_to_temp(&nD, D, mem_info.numTilesD,
                                inc_iter_to_temp(&nW, W, mem_info.numTilesW,
@@ -1518,7 +1496,7 @@ XI_ERR_TYPE flk_conv(const uint8_t *raw_params,
             }
             if (!doubleBuffCoeff && mem_info.numTilesD > 1 && lastSpatial && !lastCoeff)
             {
-              unsigned tileSize = setup_coeff_tile(tile3DOutpB, tile4DCoeffB, params);
+              tileSize = setup_coeff_tile(tile3DOutpB, tile4DCoeffB, params);
               dma_1d_sys2loc_straddles(/* src */ coeffPtr + (D + 1) * mem_info.coeffTileSize, /* dst */ XI_TILE4D_GET_BUFF_PTR(tile4DCoeffB), /* row size */ tileSize);
             }
             /* Wait for overlapping DMA transfers */

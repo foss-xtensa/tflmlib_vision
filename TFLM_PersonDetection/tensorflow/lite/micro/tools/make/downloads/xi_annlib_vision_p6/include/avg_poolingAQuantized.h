@@ -350,7 +350,7 @@ XI_ERR_TYPE MAKE_NAME(xiAvgPoolQuantizeA, DWH)(const xi_pTile3D inTile,
         else
         {
           xb_vecN_2x32v hvecQuoLL, hvecQuoLH, hvecQuoHL, hvecQuoHH, hvecRemTemp;
-          xb_vecNx16 vec1, vec0, vecEvens, vecOdds;
+          xb_vecNx16 vec1, vec0;
           xb_vecN_2x32v hvecLL, hvecLH, hvecHL, hvecHH;
           xb_vecN_2x32v roundOffLL, roundOffLH, roundOffHL, roundOffHH;
           xb_vecN_2x32v hveckSizeULL, hveckSizeULH, hveckSizeUHL, hveckSizeUHH;
@@ -679,7 +679,7 @@ XI_ERR_TYPE MAKE_NAME(xiAvgPoolQuantizeA, DWH)(const xi_pTile3D inTile,
           else
           {
             xb_vecN_2x32v hvecQuoLL, hvecQuoLH, hvecQuoHL, hvecQuoHH, hvecRemTemp;
-            xb_vecNx16 vec1, vec0, vecEvens, vecOdds;
+            xb_vecNx16 vec1, vec0;
             xb_vecN_2x32v hvecLL, hvecLH, hvecHL, hvecHH;
             xb_vecN_2x32v roundOffLL, roundOffLH, roundOffHL, roundOffHH;
 

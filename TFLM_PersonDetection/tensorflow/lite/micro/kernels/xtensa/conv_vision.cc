@@ -123,17 +123,10 @@ namespace tflite {
       tflite::micro::GetEvalInput(context, node, kConvInputTensor);
     const TfLiteEvalTensor* filter =
       tflite::micro::GetEvalInput(context, node, kConvWeightsTensor);
-    const TfLiteEvalTensor* bias =
-      (NumInputs(node) == 3)
-      ? tflite::micro::GetEvalInput(context, node, kConvBiasTensor)
-      : nullptr;
     TfLiteEvalTensor* output =
       tflite::micro::GetEvalOutput(context, node, kConvOutputTensor);
 
     TFLITE_DCHECK(node->builtin_data != nullptr);
-    const auto& params =
-      *(reinterpret_cast<TfLiteConvParams*>(node->builtin_data));
-    TFLITE_DCHECK(node->user_data != nullptr);
     const auto& data = *(static_cast<const XtensaConvOpData*>(node->user_data));
     if (data.enableXtensaKernel) {
       uint32_t input_size = input->dims->data[0] * input->dims->data[1] *

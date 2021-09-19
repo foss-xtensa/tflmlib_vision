@@ -321,17 +321,17 @@ void flk_depthwise_conv_ref(const uint8_t* raw_params,
     conv_params_t* params = (conv_params_t*)raw_params;
     xi_cnna_depthwiseDilatedConv_params xiparams;
     int zeroPtInput = -params->zeroPtInput;
-    int zeroPtCoeff = -params->zeroPtCoeff;
+    //int zeroPtCoeff = -params->zeroPtCoeff;
 
     /* Input tile edges */
-    unsigned edge_left = params->kernelW / 2;
-    unsigned edge_top = params->kernelH / 2;
-    unsigned edge_right = params->kernelW - edge_left - 1;
-    unsigned edge_bottom = params->kernelH - edge_top - 1;
+   // unsigned edge_left = params->kernelW / 2;
+   // unsigned edge_top = params->kernelH / 2;
+    //unsigned edge_right = params->kernelW - edge_left - 1;
+    //unsigned edge_bottom = params->kernelH - edge_top - 1;
 
     // Max input tile dimensions, assume whole output in one tile
-    int inpTileW = (params->output.W - 1) * params->stride + 1;
-    int inpTileH = (params->output.H - 1) * params->stride + 1;
+    //int inpTileW = (params->output.W - 1) * params->stride + 1;
+    //int inpTileH = (params->output.H - 1) * params->stride + 1;
 
     // Tile size in bytes for each data object
     int depthMultiplier = params->output.D / params->input.D;

@@ -55,12 +55,12 @@ namespace tflite {
       GetInput(context, node, kDepthwiseConvBiasTensor);
     TF_LITE_ENSURE(context, filter != nullptr);
 
-    const int input_width = input->dims->data[2];
-    const int input_height = input->dims->data[1];
+   // const int input_width = input->dims->data[2];
+   // const int input_height = input->dims->data[1];
     const int filter_width = filter->dims->data[2];
     const int filter_height = filter->dims->data[1];
-    const int output_width = output->dims->data[2];
-    const int output_height = output->dims->data[1];
+   // const int output_width = output->dims->data[2];
+   // const int output_height = output->dims->data[1];
 
     // Dynamically allocate per-channel quantization parameters.
     const int num_channels = filter->dims->data[kDepthwiseConvQuantizedDimension];
@@ -92,12 +92,12 @@ namespace tflite {
         data->contextSize = contextSize;
       }
 
-      uint32_t inputN = SizeOfDimension(input, 0);
+     // uint32_t inputN = SizeOfDimension(input, 0);
       uint32_t inputH = SizeOfDimension(input, 1);
       uint32_t inputW = SizeOfDimension(input, 2);
       uint32_t inputD = SizeOfDimension(input, 3);
 
-      uint32_t outputN = SizeOfDimension(output, 0);
+     // uint32_t outputN = SizeOfDimension(output, 0);
       uint32_t outputH = SizeOfDimension(output, 1);
       uint32_t outputW = SizeOfDimension(output, 2);
       uint32_t outputD = SizeOfDimension(output, 3);

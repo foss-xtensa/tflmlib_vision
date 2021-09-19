@@ -42,68 +42,6 @@
 #define L2POOL_DOWNSHIFT       (L2POOL_UPSHIFT >> 1)
 #define L2POOL_NUM_ITERATIONS  (5)
 
-static uint16_t averageL2Norm(uint32_t sumOfSquares, uint16_t count)
-{
-  uint32_t averageSquared;
-  uint32_t outVal;
-  // We are assuming uint32_t/uint16_t divide operation is supported
-  averageSquared = sumOfSquares / count;
-  //printf("value id %d \n",averageSquared);
-#if 1 //newton rapson method
-  uint32_t scaledAvgSqr;
-  uint32_t scaledl2Norm, l2Norm;
-  int iter;
-  // We are expecting averageSquared values to be 0 < averageSquared < 2^16
-  scaledAvgSqr = averageSquared * (1 << L2POOL_UPSHIFT);
-
-  // Use Newton Raphson to find scaledl2Norm = sqrt(scaledAvgSqr)
-  // scaledl2Norm[iter+1] = (scaledl2Norm[iter] + (scaledAvgSqr/scaledl2Norm[iter]))/2
-
-  // Final value of scaledl2Norm will be <= 255 * (1 << 8), hence it is reasonable
-  // to limit scaledl2Norm to be < (1 << 16).We found that 1 << 11 is a good initial guess
-  scaledl2Norm = L2POOL_INITIAL_GUESS;
-  for (iter = 0; iter < L2POOL_NUM_ITERATIONS; iter++)
-  {
-    // scaledAvgSqr is U32, scaledl2Norm is restricted to values < (1 << 16)
-    // Hence the division in step below will be a uint32_t/uint16_t divide operation
-    scaledl2Norm = scaledl2Norm + (scaledAvgSqr / (uint16_t) scaledl2Norm);
-    scaledl2Norm = (scaledl2Norm + 1) >> 1;
-    // limit scaledl2Norm to < (1 << 16)
-    if (scaledl2Norm >= (1 << L2POOL_UPSHIFT))
-    {
-      scaledl2Norm = 0x0000ffff;
-    }
-  }
-
-  // l2Norm = scaledl2Norm/2^8 - with rounding
-  l2Norm = (scaledl2Norm + (1 << (L2POOL_DOWNSHIFT - 1))) >> L2POOL_DOWNSHIFT;
-  outVal = (uint16_t) l2Norm;
-#else //Fast square root method
-  int i;
-  int est, squareRes, estLeft, estRight, estMiddle;
-  int errorMiddle, errorLeft, errorRight;
-  squareRes = 0x80;
-  for (i = 7; i > 0; i--)
-  {
-    est       = squareRes * squareRes;
-    estLeft   = squareRes | (1 << (i - 1));
-    estRight  = (squareRes & ~(1 << i)) | (1 << (i - 1));
-    squareRes = averageSquared < est ? estRight : estLeft;
-  }
-  est         = squareRes * squareRes;
-  estLeft     = squareRes - 1;
-  estRight    = squareRes + 1;
-  estMiddle   = squareRes;
-  errorMiddle = abs((estMiddle * estMiddle) - averageSquared);
-  errorRight  = abs((estRight * estRight) - averageSquared);
-  errorLeft   = abs((estLeft * estLeft) - averageSquared);
-  outVal      = errorLeft < errorRight ? estLeft : estRight;
-  est         = errorLeft < errorRight ? errorLeft : errorRight;
-  outVal      = errorMiddle < est ? estMiddle : outVal;
-#endif
-  return(outVal);
-}
-
 int32_t MultiplyByQuantizedMultiplierSmallerThanOne(int32_t x, int32_t quantized_multiplier, int32_t right_shift)
 {
     int32_t input_diff_rescaled = ((((int64_t)(x) * (quantized_multiplier)) + (1 << 30)) >> 31); // SATURATION NOT TAKEN CARE OF IN THIS CODE

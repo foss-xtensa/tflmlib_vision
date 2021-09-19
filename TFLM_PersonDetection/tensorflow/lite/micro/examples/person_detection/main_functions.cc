@@ -127,7 +127,7 @@ void loop() {
 #pragma no_reorder
   USER_DEFINED_HOOKS_STOP();
   totalCycles = cycleStop - cycleStart + 1;
-  printf("cycles per frame : %d, fps @800MHz = %f\n", totalCycles, (float) (800*1000*1000)/totalCycles );
+  printf("cycles per frame : %d, fps @800MHz = %f\n", totalCycles, (double) (800*1000*1000)/(double)totalCycles );
 
   TfLiteTensor* output = interpreter->output(0);
 

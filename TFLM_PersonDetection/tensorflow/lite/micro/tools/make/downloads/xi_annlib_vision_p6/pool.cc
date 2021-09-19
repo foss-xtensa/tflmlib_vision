@@ -80,8 +80,8 @@ bool poolSetup(pool_params_t* params, const size_t largeBank, const size_t small
                 D = std::max(1u, std::min(D, outpTileD));
         }
         // Check input + output tiles fit into local memory
-        uint32_t inpTileSize = D * ((W - 1) * S + KW) * ((H - 1) * S + KH);
-        uint32_t outpTileSize = D * W * H;
+         inpTileSize = D * ((W - 1) * S + KW) * ((H - 1) * S + KH);
+        outpTileSize = D * W * H;
         params->memInpTile = 2 * align_up(inpTileSize, ALIGNMENT);
         params->memOutpTile = 2 * align_up(outpTileSize, ALIGNMENT);
         if (largeBank < params->memInpTile || smallBank < params->memOutpTile) {

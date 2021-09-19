@@ -119,6 +119,12 @@ TfLiteStatus Eval(TfLiteContext* context, TfLiteNode* node) {
       DepthwiseConvEvalHifi(context, node, params, op_data, input, filter, bias,
                             output);
 #elif defined(VISIONP6)
+      (void)params;
+      (void)op_data;
+      (void)output;
+      (void)input;
+      (void)filter;
+      (void)bias;
       return DepthwiseConvEvalVision(context, node);
 #else
       reference_integer_ops::DepthwiseConvPerChannel(

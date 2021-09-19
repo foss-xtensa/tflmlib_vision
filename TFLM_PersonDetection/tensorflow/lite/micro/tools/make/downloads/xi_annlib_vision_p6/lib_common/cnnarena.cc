@@ -597,7 +597,7 @@ XI_ERR_TYPE arena_bank_free_space_debug(uint32_t bank_num, uint32_t *free_space)
 
 void * arena_pinned_buffer(uint32_t bank_num, uint32_t alignment)
 {
-    if (_arena_state == NULL || bank_num >= _arena_state->banks_count) {
+    if (_arena_state == NULL || bank_num >= (uint32_t)_arena_state->banks_count) {
         return NULL;
     }
 #if CSTUB_BUILD

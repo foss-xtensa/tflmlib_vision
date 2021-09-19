@@ -120,8 +120,8 @@ transfer_input_tile(uint8_t *inputPtr, xi_pTile3D inp, const conv_params_t *para
 
     int validX = max(0, boundX);
     int validY = max(0, boundY);
-    int validW = min(boundW, params->input.W) - validX;
-    int validH = min(boundH, params->input.H) - validY;
+    int validW = min(boundW, (int)params->input.W) - validX;
+    int validH = min(boundH, (int)params->input.H) - validY;
 
     int pad_left = validX - boundX;
     int pad_top = validY - boundY;
@@ -526,7 +526,7 @@ XI_ERR_TYPE flk_depthwise_conv(const uint8_t *raw_params,
     int32_t Dstart, Dend, Dcount;
     Dcount = (mem_info.numTilesD + getTotalCores() - 1) / getTotalCores();
     Dstart = Dcount * getMyCore();
-    Dend   = min(mem_info.numTilesD, (Dstart + Dcount));
+    Dend   = min((int32_t)mem_info.numTilesD, (Dstart + Dcount));
     if (Dstart >= Dend)
         return XI_ERROR_STATUS();
 

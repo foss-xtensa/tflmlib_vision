@@ -725,7 +725,7 @@ XI_ERR_TYPE xiConvolvedAVQ3D_QM24_S8_DWH(const xi_pTile3D inTile,
 	const int32_t output_height = XI_TILE3D_GET_DIM3(outTile);
 	const int32_t inChanNum = XI_TILE4D_GET_DIM2(coeffTile);
 	const int32_t kernel_width = XI_TILE4D_GET_DIM3(coeffTile);
-	const int32_t kernel_height = XI_TILE4D_GET_DIM4(coeffTile);
+	//const int32_t kernel_height = XI_TILE4D_GET_DIM4(coeffTile);
 	const int32_t outDataPitch1 = XI_TILE3D_GET_DIM1_PITCH(outTile);
 	const int32_t outDataPitch2 = XI_TILE3D_GET_DIM2_PITCH(outTile);
 	const int32_t coeffDataPitch1 = XI_TILE4D_GET_DIM1_PITCH(coeffTile);
@@ -783,7 +783,7 @@ XI_ERR_TYPE xiConvolvedAVQ3D_QM24_S8_DWH(const xi_pTile3D inTile,
 	/* Input and output data vectors */
 	xb_vec2Nx8 dvecData1, dvecData2, dvecData3, dvecData4;
 	xb_vec2Nx8 dvecCoeff1, dvecCoeff2, dvecCoeff3, dvecCoeff4;
-	xb_vec2Nx8 dvecCoeff5, dvecCoeff6, dvecCoeff7, dvecCoeff8;
+	//xb_vec2Nx8 dvecCoeff5, dvecCoeff6, dvecCoeff7, dvecCoeff8;
 	xb_vecN_2x32v hvecScale1, hvecScale2, hvecScale3, hvecScale4;
 	xb_vec2Nx8 dvecShift;
 	xb_vec2Nx24 daccSum1, daccSum2, daccSum3, daccSum4;
@@ -793,7 +793,7 @@ XI_ERR_TYPE xiConvolvedAVQ3D_QM24_S8_DWH(const xi_pTile3D inTile,
 	valign vaOutData = IVP_ZALIGN();
 
 	/* Variable Declarations */
-	int32_t loopCount, outCh, x, y, k;
+	int32_t loopCount, outCh, x, y;//, k;
 
 	int32_t inAddrOff, coeffAddrOff;
 	int32_t numIter = kernel_width * inChanNum;

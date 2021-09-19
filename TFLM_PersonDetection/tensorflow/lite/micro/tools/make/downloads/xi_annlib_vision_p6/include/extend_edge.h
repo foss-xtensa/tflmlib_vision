@@ -22,23 +22,6 @@
 
 #if ((XCHAL_VISION_TYPE >= 6) && defined(INCLUDE_XI_CNN))
 
-
-static void extendEdgesConst3D_I8(xi_pTile3D dstTile,
-                                  const int32_t constValue,
-                                  xi_size3D frame3DSize);
-
-static void extendEdgesConst3D_I16(xi_pTile3D dstTile,
-                                   const int32_t constValue,
-                                   xi_size3D frame3DSize);
-
-static void extendWHEdges3D_I8(xi_pTile3D dstTile,
-                               const int8_t * pValue,
-                               xi_size3D frame3DSize);
-
-static void extendWHEdges3D_I16(xi_pTile3D dstTile,
-                                const int16_t * pValue,
-                                xi_size3D frame3DSize);
-
 #define INTEGER8BIT  1
 #define INTEGER16BIT 2
 
@@ -159,19 +142,19 @@ XI_ERR_TYPE MAKE_NAME(xiExtendEdgesConst3D)(xi_pTile3D dstTile,
 #if 1
 
   /* Getting parameters from the tile structures */
-  const int32_t dim1Size = XI_TILE3D_GET_DIM1(dstTile);
-  const int32_t dim2Size = XI_TILE3D_GET_DIM2(dstTile);
-  const int32_t dim3Size = XI_TILE3D_GET_DIM3(dstTile);
-  const int32_t dim1Edge1 = XI_TILE3D_GET_DIM1_EDGE1(dstTile);
-  const int32_t dim1Edge2 = XI_TILE3D_GET_DIM1_EDGE2(dstTile);
-  const int32_t dim2Edge1 = XI_TILE3D_GET_DIM2_EDGE1(dstTile);
-  const int32_t dim2Edge2 = XI_TILE3D_GET_DIM2_EDGE2(dstTile);
-  const int32_t dim3Edge1 = XI_TILE3D_GET_DIM3_EDGE1(dstTile);
-  const int32_t dim3Edge2 = XI_TILE3D_GET_DIM3_EDGE2(dstTile);
-  const int32_t dstDataPitch1 = XI_TILE3D_GET_DIM1_PITCH(dstTile);
-  const int32_t dstDataPitch2 = XI_TILE3D_GET_DIM2_PITCH(dstTile);
+  int32_t dim1Size = XI_TILE3D_GET_DIM1(dstTile);
+  int32_t dim2Size = XI_TILE3D_GET_DIM2(dstTile);
+  int32_t dim3Size = XI_TILE3D_GET_DIM3(dstTile);
+  int32_t dim1Edge1 = XI_TILE3D_GET_DIM1_EDGE1(dstTile);
+  int32_t dim1Edge2 = XI_TILE3D_GET_DIM1_EDGE2(dstTile);
+  int32_t dim2Edge1 = XI_TILE3D_GET_DIM2_EDGE1(dstTile);
+  int32_t dim2Edge2 = XI_TILE3D_GET_DIM2_EDGE2(dstTile);
+  int32_t dim3Edge1 = XI_TILE3D_GET_DIM3_EDGE1(dstTile);
+  int32_t dim3Edge2 = XI_TILE3D_GET_DIM3_EDGE2(dstTile);
+  int32_t dstDataPitch1 = XI_TILE3D_GET_DIM1_PITCH(dstTile);
+  int32_t dstDataPitch2 = XI_TILE3D_GET_DIM2_PITCH(dstTile);
 
-  MORPH_IDT_SCALAR *pDst = (MORPH_IDT_SCALAR *)XI_TILE3D_GET_DATA_PTR(dstTile);
+  MORPH_IDT_SCALAR *pDstT = (MORPH_IDT_SCALAR *)XI_TILE3D_GET_DATA_PTR(dstTile);
 
   int32_t frame_dim1 = frame3DSize.dim1Size;
   int32_t frame_dim2 = frame3DSize.dim2Size;
@@ -203,7 +186,7 @@ XI_ERR_TYPE MAKE_NAME(xiExtendEdgesConst3D)(xi_pTile3D dstTile,
   /* ExtendEdges functionality.                                                  */
   /*******************************************************************************/
 
-  MORPH_IDT_SCALAR *pDst1;
+  MORPH_IDT_SCALAR *pDst1T;
 
   /* Number of 2D tiles to be processed across edge1 3rd dimension */
   int32_t dim3SizeFrontEnd = izmin - (start_z - dim3Edge1);
@@ -253,8 +236,8 @@ XI_ERR_TYPE MAKE_NAME(xiExtendEdgesConst3D)(xi_pTile3D dstTile,
     /***********************************************************************************/
 
     /* update destination data pointer */
-    pDst1 = &pDst[((-dim3Edge1) * dstDataPitch2)];
-    XI_TILE3D_SET_DATA_PTR(&dst_t, pDst1);
+    pDst1T = &pDstT[((-dim3Edge1) * dstDataPitch2)];
+    XI_TILE3D_SET_DATA_PTR(&dst_t, pDst1T);
     XI_TILE3D_SET_DIM3(&dst_t, dim3SizeFrontEnd);
     MORPH_IDT_FILLTILE(&dst_t, value, 1);
   }
@@ -265,53 +248,53 @@ XI_ERR_TYPE MAKE_NAME(xiExtendEdgesConst3D)(xi_pTile3D dstTile,
     /***********************************************************************************/
 
     /* update destination data pointer */
-    pDst1 = &pDst[dim3CordRearEnd * dstDataPitch2];
-    XI_TILE3D_SET_DATA_PTR(&dst_t, pDst1);
+    pDst1T = &pDstT[dim3CordRearEnd * dstDataPitch2];
+    XI_TILE3D_SET_DATA_PTR(&dst_t, pDst1T);
     XI_TILE3D_SET_DIM3(&dst_t, dim3SizeRearEnd);
     MORPH_IDT_FILLTILE(&dst_t, value, 1);
   }
 
   /* Update destination data pointer */
-  pDst1 = &pDst[(dim3CordMiddle * dstDataPitch2)];
+  pDst1T = &pDstT[(dim3CordMiddle * dstDataPitch2)];
   XI_TILE3D_SET_DIM3(&dst_t, dim3SizeMiddle);
-  XI_TILE3D_SET_DATA_PTR(&dst_t, pDst1);
+  XI_TILE3D_SET_DATA_PTR(&dst_t, pDst1T);
 
   //MORPH_OP_FUNCTION_CONST(&dst_t, value, frame3DSize);
   // TODO : defined function in function. This is body of extendEdgesConst3D_I8()
   // need to move out to seperate function
   {
-	  xi_pTile3D dstTile = &dst_t;
+	  xi_pTile3D dstTile2 = &dst_t;
 	  const int32_t constValue = value;
       //xi_size3D frame3DSize
 
     /* Getting parameters from the tile structures */
-    const int32_t dim1Size = XI_TILE3D_GET_DIM1(dstTile);
-    const int32_t dim2Size = XI_TILE3D_GET_DIM2(dstTile);
-    const int32_t dim1Edge1 = XI_TILE3D_GET_DIM1_EDGE1(dstTile);
-    const int32_t dim1Edge2 = XI_TILE3D_GET_DIM1_EDGE2(dstTile);
-    const int32_t dim2Edge1 = XI_TILE3D_GET_DIM2_EDGE1(dstTile);
-    const int32_t dim2Edge2 = XI_TILE3D_GET_DIM2_EDGE2(dstTile);
-    int32_t dim3Size =  XI_TILE3D_GET_DIM3(dstTile);
+    dim1Size = XI_TILE3D_GET_DIM1(dstTile2);
+    dim2Size = XI_TILE3D_GET_DIM2(dstTile2);
+    dim1Edge1 = XI_TILE3D_GET_DIM1_EDGE1(dstTile2);
+    dim1Edge2 = XI_TILE3D_GET_DIM1_EDGE2(dstTile2);
+    dim2Edge1 = XI_TILE3D_GET_DIM2_EDGE1(dstTile2);
+    dim2Edge2 = XI_TILE3D_GET_DIM2_EDGE2(dstTile2);
+    dim3Size =  XI_TILE3D_GET_DIM3(dstTile2);
 
-    const int32_t dstDataPitch1 = XI_TILE3D_GET_DIM1_PITCH(dstTile);
-    const int32_t dstDataPitch2 = XI_TILE3D_GET_DIM2_PITCH(dstTile);
-    int32_t frame_dim1 = frame3DSize.dim1Size;
-    int32_t frame_dim2 = frame3DSize.dim2Size;
+    dstDataPitch1 = XI_TILE3D_GET_DIM1_PITCH(dstTile2);
+    dstDataPitch2 = XI_TILE3D_GET_DIM2_PITCH(dstTile2);
+    frame_dim1 = frame3DSize.dim1Size;
+    frame_dim2 = frame3DSize.dim2Size;
 
-    int32_t start_x = XI_TILE3D_GET_DIM1_COORD(dstTile);
-    int32_t start_y = XI_TILE3D_GET_DIM2_COORD(dstTile);
+    start_x = XI_TILE3D_GET_DIM1_COORD(dstTile2);
+    start_y = XI_TILE3D_GET_DIM2_COORD(dstTile2);
 
-    int32_t ixmin = max(start_x - dim1Edge1, 0);
-    int32_t ixmax = min(start_x + dim1Size + dim1Edge2 - 1, frame_dim1 - 1);
-    int32_t iymin = max(start_y - dim2Edge1, 0);
-    int32_t iymax = min(start_y + dim2Size + dim2Edge2 - 1, frame_dim2 - 1);
-    const int8_t value = constValue;
+    ixmin = max(start_x - dim1Edge1, 0);
+    ixmax = min(start_x + dim1Size + dim1Edge2 - 1, frame_dim1 - 1);
+    iymin = max(start_y - dim2Edge1, 0);
+    iymax = min(start_y + dim2Size + dim2Edge2 - 1, frame_dim2 - 1);
+    const int8_t value8 = (const int8_t)constValue;
     int x, y, z; /* Loop variables */
     valign vaOutData1 = IVP_ZALIGN();
     int32_t dim1ExtendEdgeSize = dim1Size + dim1Edge1 + dim1Edge2;
     int32_t dim2ExtendEdgeSize = (dim2Size + dim2Edge1 + dim2Edge2) * dstDataPitch1;
 
-    int8_t *__restrict pDst3D = (int8_t *)XI_TILE3D_GET_DATA_PTR(dstTile);
+    int8_t *__restrict pDst3D = (int8_t *)XI_TILE3D_GET_DATA_PTR(dstTile2);
 
 
     // horizontal top
@@ -361,10 +344,10 @@ XI_ERR_TYPE MAKE_NAME(xiExtendEdgesConst3D)(xi_pTile3D dstTile,
         for (; x < horTopWidth * horTopHeight - (2 * XCHAL_IVPN_SIMD_WIDTH); \
           x += 2 * XCHAL_IVPN_SIMD_WIDTH)
         {
-          IVP_SA2NX8U_IP(value, vaOutData1, pdvecOut1);
+          IVP_SA2NX8U_IP(value8, vaOutData1, pdvecOut1);
         }
 
-        IVP_SAV2NX8U_XP(value, vaOutData1, pdvecOut1,
+        IVP_SAV2NX8U_XP(value8, vaOutData1, pdvecOut1,
           sizeof(uint8_t) * (horTopWidth * horTopHeight - x));
         IVP_SAV2NX8UPOS_FP(vaOutData1, pdvecOut1);
       } //if( horTopHeight > 0)
@@ -381,9 +364,9 @@ XI_ERR_TYPE MAKE_NAME(xiExtendEdgesConst3D)(xi_pTile3D dstTile,
           for (x = 0; x < numIter - (2 * XCHAL_IVPN_SIMD_WIDTH); \
             x += 2 * XCHAL_IVPN_SIMD_WIDTH)
           {
-            IVP_SA2NX8U_IP(value, vaOutData1, pdvecOut1);
+            IVP_SA2NX8U_IP(value8, vaOutData1, pdvecOut1);
           }
-          IVP_SAV2NX8U_XP(value, vaOutData1, pdvecOut1,
+          IVP_SAV2NX8U_XP(value8, vaOutData1, pdvecOut1,
             sizeof(uint8_t) * (numIter - x));
           IVP_SAV2NX8UPOS_FP(vaOutData1, pdvecOut1);
         }
@@ -400,9 +383,9 @@ XI_ERR_TYPE MAKE_NAME(xiExtendEdgesConst3D)(xi_pTile3D dstTile,
         for (; x < horBottomWidth * horBottomHeight - 2 * XCHAL_IVPN_SIMD_WIDTH; \
           x += 2 * XCHAL_IVPN_SIMD_WIDTH)
         {
-          IVP_SA2NX8U_IP(value, vaOutData1, pdvecOut1);
+          IVP_SA2NX8U_IP(value8, vaOutData1, pdvecOut1);
         }
-        IVP_SAV2NX8U_XP(value, vaOutData1, pdvecOut1,
+        IVP_SAV2NX8U_XP(value8, vaOutData1, pdvecOut1,
           sizeof(uint8_t) * (horBottomWidth * horBottomHeight - x));
         IVP_SAV2NX8UPOS_FP(vaOutData1, pdvecOut1);
       }
@@ -425,13 +408,13 @@ XI_ERR_TYPE MAKE_NAME(xiExtendEdgesConst3D)(xi_pTile3D dstTile,
             {
               pdvecOut1 = (xb_vec2Nx8U *)(pDst1 + (y * dstDataPitch1) + x);
               pdvecOut2 = (xb_vec2Nx8U *)(pDst2 + (y * dstDataPitch1) + x);
-              IVP_SA2NX8U_IP(value, vaOutData1, pdvecOut1);
-              IVP_SAV2NX8U_XP(value, vaOutData1, pdvecOut1,
+              IVP_SA2NX8U_IP(value8, vaOutData1, pdvecOut1);
+              IVP_SAV2NX8U_XP(value8, vaOutData1, pdvecOut1,
                 (horTopWidth - x - 2 * XCHAL_IVPN_SIMD_WIDTH));
               IVP_SAV2NX8UPOS_FP(vaOutData1, pdvecOut1);
 
-              IVP_SA2NX8U_IP(value, vaOutData1, pdvecOut2);
-              IVP_SAV2NX8U_XP(value, vaOutData1, pdvecOut2,
+              IVP_SA2NX8U_IP(value8, vaOutData1, pdvecOut2);
+              IVP_SAV2NX8U_XP(value8, vaOutData1, pdvecOut2,
                 (horTopWidth - x - 2 * XCHAL_IVPN_SIMD_WIDTH));
               IVP_SAV2NX8UPOS_FP(vaOutData1, pdvecOut2);
             }
@@ -442,10 +425,10 @@ XI_ERR_TYPE MAKE_NAME(xiExtendEdgesConst3D)(xi_pTile3D dstTile,
             {
               pdvecOut1 = (xb_vec2Nx8U *)(pDst1 + (y * dstDataPitch1) + x);
               pdvecOut2 = (xb_vec2Nx8U *)(pDst2 + (y * dstDataPitch1) + x);
-              IVP_SAV2NX8U_XP(value, vaOutData1, pdvecOut1, (horTopWidth - x));
+              IVP_SAV2NX8U_XP(value8, vaOutData1, pdvecOut1, (horTopWidth - x));
               IVP_SAV2NX8UPOS_FP(vaOutData1, pdvecOut1);
 
-              IVP_SAV2NX8U_XP(value, vaOutData1, pdvecOut2, (horTopWidth - x));
+              IVP_SAV2NX8U_XP(value8, vaOutData1, pdvecOut2, (horTopWidth - x));
               IVP_SAV2NX8UPOS_FP(vaOutData1, pdvecOut2);
             }
           }
@@ -465,13 +448,13 @@ XI_ERR_TYPE MAKE_NAME(xiExtendEdgesConst3D)(xi_pTile3D dstTile,
             {
               pdvecOut1 = (xb_vec2Nx8U *)(pDst1 + (y * dstDataPitch1) + x);
               pdvecOut2 = (xb_vec2Nx8U *)(pDst2 + (y * dstDataPitch1) + x);
-              IVP_SA2NX8U_IP(value, vaOutData1, pdvecOut1);
-              IVP_SAV2NX8U_XP(value, vaOutData1, pdvecOut1,
+              IVP_SA2NX8U_IP(value8, vaOutData1, pdvecOut1);
+              IVP_SAV2NX8U_XP(value8, vaOutData1, pdvecOut1,
                 (horBottomWidth - x - 2 * XCHAL_IVPN_SIMD_WIDTH));
               IVP_SAV2NX8UPOS_FP(vaOutData1, pdvecOut1);
 
-              IVP_SA2NX8U_IP(value, vaOutData1, pdvecOut2);
-              IVP_SAV2NX8U_XP(value, vaOutData1, pdvecOut2,
+              IVP_SA2NX8U_IP(value8, vaOutData1, pdvecOut2);
+              IVP_SAV2NX8U_XP(value8, vaOutData1, pdvecOut2,
                 (horBottomWidth - x - 2 * XCHAL_IVPN_SIMD_WIDTH));
               IVP_SAV2NX8UPOS_FP(vaOutData1, pdvecOut2);
             }
@@ -482,10 +465,10 @@ XI_ERR_TYPE MAKE_NAME(xiExtendEdgesConst3D)(xi_pTile3D dstTile,
             {
               pdvecOut1 = (xb_vec2Nx8U *)(pDst1 + (y * dstDataPitch1) + x);
               pdvecOut2 = (xb_vec2Nx8U *)(pDst2 + (y * dstDataPitch1) + x);
-              IVP_SAV2NX8U_XP(value, vaOutData1, pdvecOut1, (horBottomWidth - x));
+              IVP_SAV2NX8U_XP(value8, vaOutData1, pdvecOut1, (horBottomWidth - x));
               IVP_SAV2NX8UPOS_FP(vaOutData1, pdvecOut1);
 
-              IVP_SAV2NX8U_XP(value, vaOutData1, pdvecOut2, (horBottomWidth - x));
+              IVP_SAV2NX8U_XP(value8, vaOutData1, pdvecOut2, (horBottomWidth - x));
               IVP_SAV2NX8UPOS_FP(vaOutData1, pdvecOut2);
             }
           }
@@ -493,7 +476,7 @@ XI_ERR_TYPE MAKE_NAME(xiExtendEdgesConst3D)(xi_pTile3D dstTile,
       }
       if(z < dim3Size)
       {
-        pDst = (int8_t *)XI_TILE3D_GET_DATA_PTR(dstTile) + (z * dstDataPitch2);
+        pDst = (int8_t *)XI_TILE3D_GET_DATA_PTR(dstTile2) + (z * dstDataPitch2);
 
         // horizontal top
         pDst1 = (uint8_t *)pDst + ((horTopYcord * dstDataPitch1) + horTopXcord);
@@ -505,8 +488,8 @@ XI_ERR_TYPE MAKE_NAME(xiExtendEdgesConst3D)(xi_pTile3D dstTile,
             for (y = 0; y < horTopHeight; y++)
             {
               pdvecOut1 = (xb_vec2Nx8U *)(pDst1 + (y * dstDataPitch1) + x);
-              IVP_SA2NX8U_IP(value, vaOutData1, pdvecOut1);
-              IVP_SAV2NX8U_XP(value, vaOutData1, pdvecOut1,
+              IVP_SA2NX8U_IP(value8, vaOutData1, pdvecOut1);
+              IVP_SAV2NX8U_XP(value8, vaOutData1, pdvecOut1,
                 (horTopWidth - x - 2 * XCHAL_IVPN_SIMD_WIDTH));
               IVP_SAV2NX8UPOS_FP(vaOutData1, pdvecOut1);
             }
@@ -516,7 +499,7 @@ XI_ERR_TYPE MAKE_NAME(xiExtendEdgesConst3D)(xi_pTile3D dstTile,
             for (y = 0; y < horTopHeight; y++)
             {
               pdvecOut1 = (xb_vec2Nx8U *)(pDst1 + (y * dstDataPitch1) + x);
-              IVP_SAV2NX8U_XP(value, vaOutData1, pdvecOut1, (horTopWidth - x));
+              IVP_SAV2NX8U_XP(value8, vaOutData1, pdvecOut1, (horTopWidth - x));
               IVP_SAV2NX8UPOS_FP(vaOutData1, pdvecOut1);
             }
           }
@@ -532,8 +515,8 @@ XI_ERR_TYPE MAKE_NAME(xiExtendEdgesConst3D)(xi_pTile3D dstTile,
             for (y = 0; y < horBottomHeight; y++)
             {
               pdvecOut1 = (xb_vec2Nx8U *)(pDst1 + (y * dstDataPitch1) + x);
-              IVP_SA2NX8U_IP(value, vaOutData1, pdvecOut1);
-              IVP_SAV2NX8U_XP(value, vaOutData1, pdvecOut1,
+              IVP_SA2NX8U_IP(value8, vaOutData1, pdvecOut1);
+              IVP_SAV2NX8U_XP(value8, vaOutData1, pdvecOut1,
                 (horBottomWidth - x - 2 * XCHAL_IVPN_SIMD_WIDTH));
               IVP_SAV2NX8UPOS_FP(vaOutData1, pdvecOut1);
             }
@@ -543,7 +526,7 @@ XI_ERR_TYPE MAKE_NAME(xiExtendEdgesConst3D)(xi_pTile3D dstTile,
             for (y = 0; y < horBottomHeight; y++)
             {
               pdvecOut1 = (xb_vec2Nx8U *)(pDst1 + (y * dstDataPitch1) + x);
-              IVP_SAV2NX8U_XP(value, vaOutData1, pdvecOut1, (horBottomWidth - x));
+              IVP_SAV2NX8U_XP(value8, vaOutData1, pdvecOut1, (horBottomWidth - x));
               IVP_SAV2NX8UPOS_FP(vaOutData1, pdvecOut1);
             }
           }
@@ -564,9 +547,9 @@ XI_ERR_TYPE MAKE_NAME(xiExtendEdgesConst3D)(xi_pTile3D dstTile,
         {
           pdvecOut1 = (xb_vec2Nx8U *)(pDst1 + (y * dstDataPitch1) + x);
           pdvecOut2 = (xb_vec2Nx8U *)(pDst2 + (y * dstDataPitch1) + x);
-          IVP_SAV2NX8U_XP(value, vaOutData1, pdvecOut1, (verLeftWidth - x));
+          IVP_SAV2NX8U_XP(value8, vaOutData1, pdvecOut1, (verLeftWidth - x));
           IVP_SAV2NX8UPOS_FP(vaOutData1, pdvecOut1);
-          IVP_SAV2NX8U_XP(value, vaOutData1, pdvecOut2, (verLeftWidth - x));
+          IVP_SAV2NX8U_XP(value8, vaOutData1, pdvecOut2, (verLeftWidth - x));
           IVP_SAV2NX8UPOS_FP(vaOutData1, pdvecOut2);
         }
       }
@@ -583,16 +566,16 @@ XI_ERR_TYPE MAKE_NAME(xiExtendEdgesConst3D)(xi_pTile3D dstTile,
         {
           pdvecOut1 = (xb_vec2Nx8U *)(pDst1 + (y * dstDataPitch1) + x);
           pdvecOut2 = (xb_vec2Nx8U *)(pDst2 + (y * dstDataPitch1) + x);
-          IVP_SAV2NX8U_XP(value, vaOutData1, pdvecOut1, (verRightWidth - x));
+          IVP_SAV2NX8U_XP(value8, vaOutData1, pdvecOut1, (verRightWidth - x));
           IVP_SAV2NX8UPOS_FP(vaOutData1, pdvecOut1);
-          IVP_SAV2NX8U_XP(value, vaOutData1, pdvecOut2, (verRightWidth - x));
+          IVP_SAV2NX8U_XP(value8, vaOutData1, pdvecOut2, (verRightWidth - x));
           IVP_SAV2NX8UPOS_FP(vaOutData1, pdvecOut2);
         }
       }
     }
     if(z < dim3Size)
     {
-      pDst = (int8_t *)XI_TILE3D_GET_DATA_PTR(dstTile) + (z * dstDataPitch2);
+      pDst = (int8_t *)XI_TILE3D_GET_DATA_PTR(dstTile2) + (z * dstDataPitch2);
 
       // vertical left
       pDst1 = (uint8_t *)pDst + ((verLeftYcord * dstDataPitch1) + verLeftXcord);
@@ -602,7 +585,7 @@ XI_ERR_TYPE MAKE_NAME(xiExtendEdgesConst3D)(xi_pTile3D dstTile,
         for (y = 0; y < verLeftHeight; y++)
         {
           pdvecOut1 = (xb_vec2Nx8U *)(pDst1 + (y * dstDataPitch1) + x);
-          IVP_SAV2NX8U_XP(value, vaOutData1, pdvecOut1, (verLeftWidth - x));
+          IVP_SAV2NX8U_XP(value8, vaOutData1, pdvecOut1, (verLeftWidth - x));
           IVP_SAV2NX8UPOS_FP(vaOutData1, pdvecOut1);
         }
       }
@@ -615,7 +598,7 @@ XI_ERR_TYPE MAKE_NAME(xiExtendEdgesConst3D)(xi_pTile3D dstTile,
         for (y = 0; y < verRightHeight; y++)
         {
           pdvecOut1 = (xb_vec2Nx8U *)(pDst1 + (y * dstDataPitch1) + x);
-          IVP_SAV2NX8U_XP(value, vaOutData1, pdvecOut1, (verRightWidth - x));
+          IVP_SAV2NX8U_XP(value8, vaOutData1, pdvecOut1, (verRightWidth - x));
           IVP_SAV2NX8UPOS_FP(vaOutData1, pdvecOut1);
         }
       }
