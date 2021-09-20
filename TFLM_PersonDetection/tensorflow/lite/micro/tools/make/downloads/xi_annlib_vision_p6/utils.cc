@@ -491,7 +491,7 @@ int dumpOutputToFile(std::string filename, int dim0, int dim1, int dim2, int dim
   int outputSize = dim0 * dim1 * dim2 * dim3;
   if (!(op=fopen(filename.c_str(), "w")))
     exit(-1);
-    fprintf(op, "dims:%d, %d, %d, %d \n", dim0, dim1, dim2, dim3);
+  fprintf(op, "dims:%d, %d, %d, %d \n", dim0, dim1, dim2, dim3);
   for (i = 0; i < outputSize; i++)
     {
       fprintf(op,"[%d]=%d,", i, pData[i]);

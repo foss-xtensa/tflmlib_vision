@@ -18,6 +18,11 @@
 #define FLATBUFFERS_H_
 
 #include "flatbuffers/base.h"
+#include "flatbuffers/stl_emulation.h"
+
+#ifndef FLATBUFFERS_CPP98_STL
+  #include <functional>
+#endif
 
 #if defined(FLATBUFFERS_NAN_DEFAULTS)
 #  include <cmath>
@@ -581,6 +586,14 @@ static inline const char *GetCstring(const String *str) {
   return str ? str->c_str() : "";
 }
 
+#ifdef FLATBUFFERS_HAS_STRING_VIEW
+// Convenience function to get string_view from a String returning an empty
+// string_view on null pointer.
+static inline flatbuffers::string_view GetStringView(const String *str) {
+  return str ? str->string_view() : flatbuffers::string_view();
+}
+#endif  // FLATBUFFERS_HAS_STRING_VIEW
+
 // Allocator interface. This is flatbuffers-specific and meant only for
 // `vector_downward` usage.
 class Allocator {
@@ -640,24 +653,18 @@ class DefaultAllocator : public Allocator {
 // This is to avoid having a statically or dynamically allocated default
 // allocator, or having to move it between the classes that may own it.
 inline uint8_t *Allocate(Allocator *allocator, size_t size) {
-  return allocator ? allocator->allocate(size)
-                   : DefaultAllocator().allocate(size);
+  return allocator->allocate(size);
 }
 
 inline void Deallocate(Allocator *allocator, uint8_t *p, size_t size) {
-  if (allocator)
-    allocator->deallocate(p, size);
-  else
-    DefaultAllocator().deallocate(p, size);
+  return allocator->deallocate(p, size);
 }
 
 inline uint8_t *ReallocateDownward(Allocator *allocator, uint8_t *old_p,
                                    size_t old_size, size_t new_size,
                                    size_t in_use_back, size_t in_use_front) {
-  return allocator ? allocator->reallocate_downward(old_p, old_size, new_size,
-                                                    in_use_back, in_use_front)
-                   : DefaultAllocator().reallocate_downward(
-                         old_p, old_size, new_size, in_use_back, in_use_front);
+  return allocator->reallocate_downward(old_p, old_size, new_size,
+                                        in_use_back, in_use_front);
 }
 
 // DetachedBuffer is a finished flatbuffer memory region, detached from its
@@ -1211,7 +1218,7 @@ class FlatBufferBuilder {
   /// you call Finish()). You can use this information if you need to embed
   /// a FlatBuffer in some other buffer, such that you can later read it
   /// without first having to copy it into its own buffer.
-  size_t GetBufferMinAlignment() {
+  size_t GetBufferMinAlignment() const {
     Finished();
     return minalign_;
   }
@@ -1291,6 +1298,11 @@ class FlatBufferBuilder {
   template<typename T> void AddElement(voffset_t field, T e, T def) {
     // We don't serialize values equal to the default.
     if (IsTheSameAs(e, def) && !force_defaults_) return;
+    auto off = PushElement(e);
+    TrackField(field, off);
+  }
+
+  template<typename T> void AddElement(voffset_t field, T e) {
     auto off = PushElement(e);
     TrackField(field, off);
   }
@@ -1599,6 +1611,9 @@ class FlatBufferBuilder {
     // causing the wrong overload to be selected, remove it.
     AssertScalarT<T>();
     StartVector(len, sizeof(T));
+    if (len == 0) {
+      return Offset<Vector<T>>(EndVector(len));
+    }
     // clang-format off
     #if FLATBUFFERS_LITTLEENDIAN
       PushBytes(reinterpret_cast<const uint8_t *>(v), len * sizeof(T));
@@ -1795,8 +1810,8 @@ class FlatBufferBuilder {
       return a.KeyCompareLessThan(&b);
     }
 
-   private:
-    StructKeyComparator &operator=(const StructKeyComparator &);
+    FLATBUFFERS_DELETE_FUNC(
+        StructKeyComparator &operator=(const StructKeyComparator &))
   };
   /// @endcond
 
@@ -1871,10 +1886,7 @@ class FlatBufferBuilder {
     vector_downward &buf_;
 
    private:
-    TableKeyComparator &operator=(const TableKeyComparator &other) {
-      buf_ = other.buf_;
-      return *this;
-    }
+    FLATBUFFERS_DELETE_FUNC(TableKeyComparator &operator=(const TableKeyComparator &other))
   };
   /// @endcond
 
@@ -2269,8 +2281,8 @@ class Verifier FLATBUFFERS_FINAL_CLASS {
 
   template<typename T>
   bool VerifyBufferFromStart(const char *identifier, size_t start) {
-    if (identifier && (size_ < 2 * sizeof(flatbuffers::uoffset_t) ||
-                       !BufferHasIdentifier(buf_ + start, identifier))) {
+    if (identifier && !Check((size_ >= 2 * sizeof(flatbuffers::uoffset_t) &&
+                              BufferHasIdentifier(buf_ + start, identifier)))) {
       return false;
     }
 
@@ -2452,9 +2464,23 @@ class Table {
     return field_offset ? reinterpret_cast<P>(p) : nullptr;
   }
 
+  template<typename Raw, typename Face>
+  flatbuffers::Optional<Face> GetOptional(voffset_t field) const {
+    auto field_offset = GetOptionalFieldOffset(field);
+    auto p = data_ + field_offset;
+    return field_offset ? Optional<Face>(static_cast<Face>(ReadScalar<Raw>(p)))
+                        : Optional<Face>();
+  }
+
   template<typename T> bool SetField(voffset_t field, T val, T def) {
     auto field_offset = GetOptionalFieldOffset(field);
     if (!field_offset) return IsTheSameAs(val, def);
+    WriteScalar(data_ + field_offset, val);
+    return true;
+  }
+  template<typename T> bool SetField(voffset_t field, T val) {
+    auto field_offset = GetOptionalFieldOffset(field);
+    if (!field_offset) return false;
     WriteScalar(data_ + field_offset, val);
     return true;
   }
@@ -2524,6 +2550,17 @@ class Table {
 
   uint8_t data_[1];
 };
+
+// This specialization allows avoiding warnings like:
+// MSVC C4800: type: forcing value to bool 'true' or 'false'.
+template<>
+inline flatbuffers::Optional<bool> Table::GetOptional<uint8_t, bool>(
+    voffset_t field) const {
+  auto field_offset = GetOptionalFieldOffset(field);
+  auto p = data_ + field_offset;
+  return field_offset ? Optional<bool>(ReadScalar<uint8_t>(p) != 0)
+                      : Optional<bool>();
+}
 
 template<typename T>
 void FlatBufferBuilder::Required(Offset<T> table, voffset_t field) {
@@ -2704,7 +2741,7 @@ inline const char * const *ElementaryTypeNames() {
 // Basic type info cost just 16bits per field!
 struct TypeCode {
   uint16_t base_type : 4;  // ElementaryType
-  uint16_t is_vector : 1;
+  uint16_t is_repeating : 1;  // Either vector (in table) or array (in struct)
   int16_t sequence_ref : 11;  // Index into type_refs below, or -1 for none.
 };
 
@@ -2720,6 +2757,7 @@ struct TypeTable {
   size_t num_elems;  // of type_codes, values, names (but not type_refs).
   const TypeCode *type_codes;     // num_elems count
   const TypeFunction *type_refs;  // less than num_elems entries (see TypeCode).
+  const int16_t *array_sizes;     // less than num_elems entries (see TypeCode).
   const int64_t *values;  // Only set for non-consecutive enum/union or structs.
   const char *const *names;  // Only set if compiled with --reflect-names.
 };
