@@ -44,8 +44,11 @@ TfLiteStatus AverageEval(TfLiteContext* context, TfLiteNode* node) {
       AveragePoolingEvalFloat(context, node, params, data, input, output);
       break;
     case kTfLiteInt8:
-#if defined(VISIONP6)
-      return AveragePoolingEvalQuantizedVision(context, node);
+#if  defined(VISIONP6)
+     if(params->stride_height==params->stride_width)
+       return AveragePoolingEvalQuantizedVision(context, node);
+     else
+	   AveragePoolingEvalQuantized(context, node, params, data, input, output); 
 #else
       AveragePoolingEvalQuantized(context, node, params, data, input, output);
 #endif
@@ -100,7 +103,10 @@ TfLiteStatus AveragePrepare(TfLiteContext* context, TfLiteNode* node) {
   TF_LITE_ENSURE_OK(context, PoolingPrepare(context, node));
 
 #if defined(VISIONP6)
-  TF_LITE_ENSURE_OK(context, AveragePoolingPrepareVision(context, node));
+  TFLITE_DCHECK(node->builtin_data != nullptr);
+  auto* params = reinterpret_cast<TfLitePoolParams*>(node->builtin_data);
+  if(params->stride_height==params->stride_width)
+    TF_LITE_ENSURE_OK(context, AveragePoolingPrepareVision(context, node));
 #endif //VISIONP6
   return kTfLiteOk;
 }
